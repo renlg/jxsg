@@ -1,12 +1,28 @@
 // mock 数据 + 本地存档：资源数值（仅金币）、英雄碎片/升级、商店、出征进度
 // 弹窗操作时资源与数据联动变化；tt.setStorageSync 持久化，重启后 tt.getStorageSync 还原
 
+// ========== 武器系（职业）系统 ==========
+// 5 种武器系：弓/剑/刀/戟/枪。每名英雄/敌方单位固定归属一种武器系：
+// - 装备限制：英雄仅能装备与自身武器系相同的装备（见 equipToHero/isEquipUsableByHero）
+// - 战斗属性：射程（曼哈顿或切比雪夫距离，battle.js 中按切比雪夫距离判定攻击范围）与伤害倍率各不相同（见 battle.js _weaponMeta/_attack）
+//   弓：射程最长(3格)，但无法攻击相邻(1格)目标；枪：射程2格，中高伤害；戟：射程2格，中等伤害+横扫周围1格；
+//   刀：射程1格（近战），伤害最高；剑：射程1格（近战），伤害中等但连续攻击两次（迅捷）
+export const WEAPON_TYPE_LIST = ['gong', 'jian', 'dao', 'ji', 'qiang']
+export const WEAPON_TYPE_META = {
+  gong: { id: 'gong', name: '弓', range: 3, minRange: 2, dmgMult: 1.0, rangeDesc: '射程2~3格（远程，无法攻击相邻目标）' },
+  qiang: { id: 'qiang', name: '枪', range: 2, minRange: 1, dmgMult: 1.15, rangeDesc: '射程1~2格（长枪突刺，伤害中高）' },
+  ji: { id: 'ji', name: '戟', range: 2, minRange: 1, dmgMult: 1.05, sweep: true, rangeDesc: '射程1~2格（戟扫，命中目标周围1格内敌方，伤害中等）' },
+  dao: { id: 'dao', name: '刀', range: 1, minRange: 1, dmgMult: 1.35, rangeDesc: '射程1格（近战速攻，伤害最高）' },
+  jian: { id: 'jian', name: '剑', range: 1, minRange: 1, dmgMult: 0.85, doubleHit: true, rangeDesc: '射程1格（近战迅捷，连续攻击两次）' }
+}
+
 // 12 名英雄基础属性：出征编队从已解锁英雄中最多选 4 人上阵（默认桃园三兄弟），与 battle.js 中
 // HERO_BATTLE_DEFS 的 spd/move/技能配套；攻/血/防随等级成长
-// faction：蜀/吴/魏/群；skills 为展示用技能描述（name/desc/rage/type/power），非战斗结算引擎数据
+// faction：蜀/吴/魏/群；weaponType：武器系（史载明确者按史实指定，不确定者默认剑）；
+// skills 为展示用技能描述（name/desc/rage/type/power），非战斗结算引擎数据
 const HERO_BASE = {
   liubei: {
-    name: '刘备', faction: '蜀', atk: 20, hp: 600, def: 8, spd: 8,
+    name: '刘备', faction: '蜀', weaponType: 'jian', atk: 20, hp: 600, def: 8, spd: 8,
     skills: [
       { name: '仁德', desc: '全体恢复(攻击力×39%)', rage: 40, type: 'heal', power: 39 },
       { name: '鼓舞', desc: '我方全体攻击+20%(2回合)', rage: 50, type: 'buffAtk', power: 20 },
@@ -14,7 +30,7 @@ const HERO_BASE = {
     ]
   },
   guanyu: {
-    name: '关羽', faction: '蜀', atk: 35, hp: 500, def: 6, spd: 10,
+    name: '关羽', faction: '蜀', weaponType: 'dao', atk: 35, hp: 500, def: 6, spd: 10,
     skills: [
       { name: '青龙斩', desc: '单体120%伤害', rage: 40, type: 'damage', power: 120 },
       { name: '武圣', desc: '自身攻击+30%(2回合)', rage: 50, type: 'buffAtk', power: 30 },
@@ -22,7 +38,7 @@ const HERO_BASE = {
     ]
   },
   zhangfei: {
-    name: '张飞', faction: '蜀', atk: 30, hp: 550, def: 8, spd: 9,
+    name: '张飞', faction: '蜀', weaponType: 'qiang', atk: 30, hp: 550, def: 8, spd: 9,
     skills: [
       { name: '咆哮', desc: '单体120%伤害+眩晕1回合', rage: 40, type: 'stun', power: 120 },
       { name: '猛进', desc: '突进目标并攻击165%伤害', rage: 50, type: 'dash', power: 165 },
@@ -30,7 +46,7 @@ const HERO_BASE = {
     ]
   },
   zhaoyun: {
-    name: '赵云', faction: '蜀', atk: 32, hp: 520, def: 7, spd: 11,
+    name: '赵云', faction: '蜀', weaponType: 'qiang', atk: 32, hp: 520, def: 7, spd: 11,
     skills: [
       { name: '连刺', desc: '单体120%伤害', rage: 40, type: 'damage', power: 120 },
       { name: '龙胆', desc: '自身攻击+30%(2回合)', rage: 50, type: 'buffAtk', power: 30 },
@@ -38,7 +54,7 @@ const HERO_BASE = {
     ]
   },
   machao: {
-    name: '马超', faction: '蜀', atk: 34, hp: 540, def: 7, spd: 9,
+    name: '马超', faction: '蜀', weaponType: 'qiang', atk: 34, hp: 540, def: 7, spd: 9,
     skills: [
       { name: '枪扫', desc: '范围140%伤害', rage: 40, type: 'area', power: 140 },
       { name: '铁骑', desc: '自身攻击+25%', rage: 50, type: 'buffAtk', power: 25 },
@@ -46,7 +62,7 @@ const HERO_BASE = {
     ]
   },
   huangzhong: {
-    name: '黄忠', faction: '蜀', atk: 38, hp: 480, def: 5, spd: 8,
+    name: '黄忠', faction: '蜀', weaponType: 'gong', atk: 38, hp: 480, def: 5, spd: 8,
     skills: [
       { name: '箭雨', desc: '范围130%伤害', rage: 40, type: 'area', power: 130 },
       { name: '百步', desc: '单体165%远程伤害', rage: 50, type: 'damage', power: 165 },
@@ -54,7 +70,7 @@ const HERO_BASE = {
     ]
   },
   huangyueying: {
-    name: '黄月英', faction: '蜀', atk: 24, hp: 480, def: 6, spd: 8,
+    name: '黄月英', faction: '蜀', weaponType: 'jian', atk: 24, hp: 480, def: 6, spd: 8,
     skills: [
       { name: '机关', desc: '范围120%伤害', rage: 40, type: 'area', power: 120 },
       { name: '木牛', desc: '我方全体恢复(攻击力×36%)', rage: 50, type: 'heal', power: 36 },
@@ -62,7 +78,7 @@ const HERO_BASE = {
     ]
   },
   sunshangxiang: {
-    name: '孙尚香', faction: '吴', atk: 30, hp: 470, def: 5, spd: 10,
+    name: '孙尚香', faction: '吴', weaponType: 'gong', atk: 30, hp: 470, def: 5, spd: 10,
     skills: [
       { name: '箭袭', desc: '单体125%伤害', rage: 40, type: 'damage', power: 125 },
       { name: '凤舞', desc: '自身攻击+30%', rage: 50, type: 'buffAtk', power: 30 },
@@ -70,7 +86,7 @@ const HERO_BASE = {
     ]
   },
   taishici: {
-    name: '太史慈', faction: '吴', atk: 33, hp: 510, def: 7, spd: 10,
+    name: '太史慈', faction: '吴', weaponType: 'jian', atk: 33, hp: 510, def: 7, spd: 10,
     skills: [
       { name: '双戟', desc: '单体130%伤害', rage: 40, type: 'damage', power: 130 },
       { name: '猛突', desc: '冲刺单体150%伤害', rage: 50, type: 'dash', power: 150 },
@@ -78,7 +94,7 @@ const HERO_BASE = {
     ]
   },
   zhenji: {
-    name: '甄姬', faction: '魏', atk: 22, hp: 460, def: 6, spd: 9,
+    name: '甄姬', faction: '魏', weaponType: 'jian', atk: 22, hp: 460, def: 6, spd: 9,
     skills: [
       { name: '洛水', desc: '单体120%伤害+减速', rage: 40, type: 'debuffDef', power: 120 },
       { name: '凝露', desc: '单体恢复(攻击力×36%)', rage: 50, type: 'heal', power: 36 },
@@ -86,7 +102,7 @@ const HERO_BASE = {
     ]
   },
   diaochan: {
-    name: '貂蝉', faction: '群', atk: 28, hp: 450, def: 5, spd: 10,
+    name: '貂蝉', faction: '群', weaponType: 'jian', atk: 28, hp: 450, def: 5, spd: 10,
     skills: [
       { name: '迷离', desc: '单体100%伤害+眩晕', rage: 40, type: 'stun', power: 100 },
       { name: '舞姿', desc: '我方全体攻击+15%', rage: 50, type: 'buffAtk', power: 15 },
@@ -94,7 +110,7 @@ const HERO_BASE = {
     ]
   },
   zhurong: {
-    name: '祝融', faction: '群', atk: 34, hp: 560, def: 9, spd: 9,
+    name: '祝融', faction: '群', weaponType: 'jian', atk: 34, hp: 560, def: 9, spd: 9,
     skills: [
       { name: '飞刀', desc: '单体130%伤害', rage: 40, type: 'damage', power: 130 },
       { name: '烈焰', desc: '范围150%伤害', rage: 50, type: 'area', power: 150 },
@@ -111,7 +127,7 @@ export const BATTLE_ROSTER = ['liubei', 'guanyu', 'zhangfei']
 export const HERO_META = {}
 HERO_IDS.forEach(id => {
   const b = HERO_BASE[id]
-  HERO_META[id] = { name: b.name, faction: b.faction, portrait: 'hero_' + id, skills: b.skills }
+  HERO_META[id] = { name: b.name, faction: b.faction, weaponType: b.weaponType, portrait: 'hero_' + id, skills: b.skills }
 })
 
 // 势力徽标颜色：蜀绿/吴红/魏蓝/群紫
@@ -122,7 +138,8 @@ function _defaultHeroes() {
   HERO_IDS.forEach(id => {
     const b = HERO_BASE[id]
     // 桃园三兄弟默认已兑换解锁，其余9名需集齐5碎片兑换后才能养成
-    heroes[id] = { shards: 0, level: 1, atk: b.atk, hp: b.hp, def: b.def, equip: null, unlocked: BATTLE_ROSTER.includes(id) }
+    // weaponType：英雄武器系（旧存档缺失该字段时，loadGame 内 Object.assign 合并不会覆盖此处的默认值，天然兼容）
+    heroes[id] = { shards: 0, level: 1, atk: b.atk, hp: b.hp, def: b.def, equip: null, weaponType: b.weaponType, unlocked: BATTLE_ROSTER.includes(id) }
   })
   return heroes
 }
@@ -205,63 +222,78 @@ export function isTitleOwned(id) {
 }
 
 // ========== 装备系统（金币购买，每名英雄仅一个装备槽）==========
-// 5 档品质：白/蓝/紫/黄/红（复用称号 QUALITY_META）。只有红装（quality 5）是 12 名英雄的专属神兵（以英雄命名），
-// 带 heroSkillDmg 技能伤害增幅；白/蓝/紫/黄装为纯属性装备，仅提供 atk/hp/def 固定值加成，无技能伤害加成，
-// 每档品质各 4 件，覆盖对应属性搭配，供未获得红装前过渡养成使用。
-// effects 支持 atk/hp/def 固定值加成，任何佩戴者均生效；heroSkillDmg 为 { heroId, pct }，
+// 5 档品质：白/蓝/紫/黄/红（复用称号 QUALITY_META）。每件装备均带 weaponType 标签（弓/剑/刀/戟/枪之一），
+// 英雄仅能装备与自身 weaponType 相同的装备（见 equipToHero/isEquipUsableByHero），装备/英雄列表按此过滤展示。
+// 白/蓝/紫/黄装：每档品质 5 件，武器系齐全（弓剑刀戟枪各一件），仅提供 atk/hp/def 固定值加成，无技能伤害加成，
+// 供未获得红装前过渡养成使用；红装（quality 5）为 12 名英雄的专属神兵（以英雄命名，weaponType = 该英雄武器系），
+// 带 heroSkillDmg 技能伤害增幅。effects 支持 atk/hp/def 固定值加成，任何佩戴者均生效；heroSkillDmg 为 { heroId, pct }，
 // 仅当佩戴者 = heroId 时该英雄技能伤害额外 +pct%（与称号「技能威力」%叠加为总百分比，详见 battle.js _skillDamage）
 export const EQUIP_LIST = [
-  // 白装 x4，纯属性加成
-  { id: 'cubuyi', name: '粗布衣', quality: 1, effects: { hp: 80 }, price: 400 },
-  { id: 'mujian', name: '木剑', quality: 1, effects: { atk: 12 }, price: 400 },
-  { id: 'pidun', name: '皮盾', quality: 1, effects: { def: 5, hp: 30 }, price: 400 },
-  { id: 'caoxie', name: '草鞋', quality: 1, effects: { hp: 50, def: 2 }, price: 400 },
+  // 白装 x5（弓剑刀戟枪各一）
+  { id: 'tenggong', name: '藤弓', quality: 1, weaponType: 'gong', effects: { atk: 14 }, price: 400 },
+  { id: 'mujian', name: '木剑', quality: 1, weaponType: 'jian', effects: { atk: 12, hp: 15 }, price: 400 },
+  { id: 'chaidao', name: '柴刀', quality: 1, weaponType: 'dao', effects: { atk: 16 }, price: 400 },
+  { id: 'zhuji', name: '竹戟', quality: 1, weaponType: 'ji', effects: { atk: 11, def: 4 }, price: 400 },
+  { id: 'bailaqiang', name: '白蜡枪', quality: 1, weaponType: 'qiang', effects: { atk: 13, hp: 20 }, price: 400 },
 
-  // 蓝装 x4，纯属性加成
-  { id: 'tiejian', name: '铁剑', quality: 2, effects: { atk: 25 }, price: 1000 },
-  { id: 'tiejia', name: '铁甲', quality: 2, effects: { def: 12, hp: 100 }, price: 1000 },
-  { id: 'jinpao', name: '锦袍', quality: 2, effects: { hp: 180 }, price: 1000 },
-  { id: 'yinggong', name: '硬弓', quality: 2, effects: { atk: 22, hp: 40 }, price: 1000 },
+  // 蓝装 x5
+  { id: 'yinggong', name: '硬弓', quality: 2, weaponType: 'gong', effects: { atk: 26 }, price: 1000 },
+  { id: 'tiejian', name: '铁剑', quality: 2, weaponType: 'jian', effects: { atk: 25, hp: 40 }, price: 1000 },
+  { id: 'huanshoudao', name: '环首刀', quality: 2, weaponType: 'dao', effects: { atk: 30 }, price: 1000 },
+  { id: 'tieji', name: '铁戟', quality: 2, weaponType: 'ji', effects: { atk: 20, def: 8 }, price: 1000 },
+  { id: 'tieqiang', name: '铁枪', quality: 2, weaponType: 'qiang', effects: { atk: 24, hp: 50 }, price: 1000 },
 
-  // 紫装 x4，纯属性加成
-  { id: 'bailiandao', name: '百炼刀', quality: 3, effects: { atk: 42 }, price: 2500 },
-  { id: 'mingguangkai', name: '明光铠', quality: 3, effects: { def: 18, hp: 200 }, price: 2500 },
-  { id: 'huwenpao', name: '虎纹袍', quality: 3, effects: { atk: 10, hp: 260 }, price: 2500 },
-  { id: 'xuantieqiang', name: '玄铁枪', quality: 3, effects: { atk: 38, def: 6 }, price: 2500 },
+  // 紫装 x5
+  { id: 'jiaogong', name: '角弓', quality: 3, weaponType: 'gong', effects: { atk: 44, hp: 40 }, price: 2500 },
+  { id: 'longquanjian', name: '龙泉剑', quality: 3, weaponType: 'jian', effects: { atk: 38, def: 6 }, price: 2500 },
+  { id: 'bailiandao', name: '百炼刀', quality: 3, weaponType: 'dao', effects: { atk: 50 }, price: 2500 },
+  { id: 'fangtianji', name: '方天戟', quality: 3, weaponType: 'ji', effects: { atk: 34, def: 12 }, price: 2500 },
+  { id: 'xuantieqiang', name: '玄铁枪', quality: 3, weaponType: 'qiang', effects: { atk: 40, hp: 70 }, price: 2500 },
 
-  // 黄装 x4，纯属性加成
-  { id: 'qinglongjian', name: '青龙剑', quality: 4, effects: { atk: 55 }, price: 5000 },
-  { id: 'jinsijia', name: '金丝甲', quality: 4, effects: { def: 22, hp: 320 }, price: 5000 },
-  { id: 'bawangpao', name: '霸王袍', quality: 4, effects: { atk: 15, hp: 380 }, price: 5000 },
-  { id: 'chiyangong', name: '赤焰弓', quality: 4, effects: { atk: 50, hp: 150 }, price: 5000 },
+  // 黄装 x5
+  { id: 'chiyangong', name: '赤焰弓', quality: 4, weaponType: 'gong', effects: { atk: 58, hp: 90 }, price: 5000 },
+  { id: 'qinglongjian', name: '青龙剑', quality: 4, weaponType: 'jian', effects: { atk: 54, def: 10, hp: 60 }, price: 5000 },
+  { id: 'longwendao', name: '龙纹刀', quality: 4, weaponType: 'dao', effects: { atk: 68 }, price: 5000 },
+  { id: 'hutouji', name: '虎头戟', quality: 4, weaponType: 'ji', effects: { atk: 46, def: 16 }, price: 5000 },
+  { id: 'liangyinqiang', name: '亮银枪', quality: 4, weaponType: 'qiang', effects: { atk: 56, hp: 100 }, price: 5000 },
 
-  // 红装 x12：12 名英雄专属神兵，技能伤害+150%（黄月英/甄姬/貂蝉 +120%）
-  { id: 'liubei_cixiongjian', name: '刘备·雌雄双股剑', quality: 5, effects: { atk: 70, hp: 300, def: 10 }, heroSkillDmg: { heroId: 'liubei', pct: 150 }, price: 12000 },
-  { id: 'guanyu_qinglongdao', name: '关羽·青龙偃月刀', quality: 5, effects: { atk: 80, hp: 280, def: 8 }, heroSkillDmg: { heroId: 'guanyu', pct: 150 }, price: 12000 },
-  { id: 'zhangfei_zhangbamao', name: '张飞·丈八蛇矛', quality: 5, effects: { atk: 75, hp: 350, def: 12 }, heroSkillDmg: { heroId: 'zhangfei', pct: 150 }, price: 12000 },
-  { id: 'zhaoyun_longdanqiang', name: '赵云·龙胆亮银枪', quality: 5, effects: { atk: 78, hp: 300, def: 8 }, heroSkillDmg: { heroId: 'zhaoyun', pct: 150 }, price: 12000 },
-  { id: 'machao_huqiang', name: '马超·虎头湛金枪', quality: 5, effects: { atk: 76, hp: 300, def: 8 }, heroSkillDmg: { heroId: 'machao', pct: 150 }, price: 12000 },
-  { id: 'huangzhong_luorigong', name: '黄忠·落日神弓', quality: 5, effects: { atk: 82, hp: 260, def: 6 }, heroSkillDmg: { heroId: 'huangzhong', pct: 150 }, price: 12000 },
-  { id: 'huangyueying_muniu', name: '黄月英·木牛流马', quality: 5, effects: { atk: 60, hp: 320, def: 10 }, heroSkillDmg: { heroId: 'huangyueying', pct: 120 }, price: 12000 },
-  { id: 'sunshangxiang_fenglinggong', name: '孙尚香·凤翎弓', quality: 5, effects: { atk: 74, hp: 270, def: 6 }, heroSkillDmg: { heroId: 'sunshangxiang', pct: 150 }, price: 12000 },
-  { id: 'taishici_wushuangji', name: '太史慈·无双双戟', quality: 5, effects: { atk: 78, hp: 300, def: 8 }, heroSkillDmg: { heroId: 'taishici', pct: 150 }, price: 12000 },
-  { id: 'zhenji_luoshenqin', name: '甄姬·洛神琴', quality: 5, effects: { atk: 55, hp: 350, def: 14 }, heroSkillDmg: { heroId: 'zhenji', pct: 120 }, price: 12000 },
-  { id: 'diaochan_nichangyuyi', name: '貂蝉·霓裳羽衣', quality: 5, effects: { atk: 62, hp: 330, def: 10 }, heroSkillDmg: { heroId: 'diaochan', pct: 120 }, price: 12000 },
-  { id: 'zhurong_huoshenfeidao', name: '祝融·火神飞刀', quality: 5, effects: { atk: 78, hp: 320, def: 10 }, heroSkillDmg: { heroId: 'zhurong', pct: 150 }, price: 15000 }
+  // 红装 x12：12 名英雄专属神兵，weaponType = 该英雄武器系，技能伤害+150%（黄月英/甄姬/貂蝉 +120%）
+  { id: 'liubei_cixiongjian', name: '刘备·雌雄双股剑', quality: 5, weaponType: 'jian', effects: { atk: 70, hp: 300, def: 10 }, heroSkillDmg: { heroId: 'liubei', pct: 150 }, price: 12000 },
+  { id: 'guanyu_qinglongdao', name: '关羽·青龙偃月刀', quality: 5, weaponType: 'dao', effects: { atk: 80, hp: 280, def: 8 }, heroSkillDmg: { heroId: 'guanyu', pct: 150 }, price: 12000 },
+  { id: 'zhangfei_zhangbamao', name: '张飞·丈八蛇矛', quality: 5, weaponType: 'qiang', effects: { atk: 75, hp: 350, def: 12 }, heroSkillDmg: { heroId: 'zhangfei', pct: 150 }, price: 12000 },
+  { id: 'zhaoyun_longdanqiang', name: '赵云·龙胆亮银枪', quality: 5, weaponType: 'qiang', effects: { atk: 78, hp: 300, def: 8 }, heroSkillDmg: { heroId: 'zhaoyun', pct: 150 }, price: 12000 },
+  { id: 'machao_huqiang', name: '马超·虎头湛金枪', quality: 5, weaponType: 'qiang', effects: { atk: 76, hp: 300, def: 8 }, heroSkillDmg: { heroId: 'machao', pct: 150 }, price: 12000 },
+  { id: 'huangzhong_luorigong', name: '黄忠·落日神弓', quality: 5, weaponType: 'gong', effects: { atk: 82, hp: 260, def: 6 }, heroSkillDmg: { heroId: 'huangzhong', pct: 150 }, price: 12000 },
+  { id: 'huangyueying_muniu', name: '黄月英·木牛流马', quality: 5, weaponType: 'jian', effects: { atk: 60, hp: 320, def: 10 }, heroSkillDmg: { heroId: 'huangyueying', pct: 120 }, price: 12000 },
+  { id: 'sunshangxiang_fenglinggong', name: '孙尚香·凤翎弓', quality: 5, weaponType: 'gong', effects: { atk: 74, hp: 270, def: 6 }, heroSkillDmg: { heroId: 'sunshangxiang', pct: 150 }, price: 12000 },
+  { id: 'taishici_wushuangji', name: '太史慈·无双双戟', quality: 5, weaponType: 'jian', effects: { atk: 78, hp: 300, def: 8 }, heroSkillDmg: { heroId: 'taishici', pct: 150 }, price: 12000 },
+  { id: 'zhenji_luoshenqin', name: '甄姬·洛神琴', quality: 5, weaponType: 'jian', effects: { atk: 55, hp: 350, def: 14 }, heroSkillDmg: { heroId: 'zhenji', pct: 120 }, price: 12000 },
+  { id: 'diaochan_nichangyuyi', name: '貂蝉·霓裳羽衣', quality: 5, weaponType: 'jian', effects: { atk: 62, hp: 330, def: 10 }, heroSkillDmg: { heroId: 'diaochan', pct: 120 }, price: 12000 },
+  { id: 'zhurong_huoshenfeidao', name: '祝融·火神飞刀', quality: 5, weaponType: 'jian', effects: { atk: 78, hp: 320, def: 10 }, heroSkillDmg: { heroId: 'zhurong', pct: 150 }, price: 15000 }
 ]
 
-// 旧存档装备 id 兼容映射：折算为新列表中属性相近的品质装备（部分名称直接沿用，如铁剑/铁甲/明光铠/锦袍）
+// 旧存档装备 id 兼容映射：折算为新列表（5 武器系改版）中属性相近的同档位装备
 const OLD_EQUIP_ID_MAP = {
   bronzesword: 'mujian',
   ironsword: 'tiejian',
   steelblade: 'bailiandao',
-  rattanarmor: 'pidun',
-  ironarmor: 'tiejia',
-  brightarmor: 'mingguangkai',
-  clothrobe: 'cubuyi',
-  brocaderobe: 'jinpao',
-  whitedragonarmor: 'jinsijia',
-  xuanwuarmor: 'bawangpao'
+  rattanarmor: 'zhuji',
+  ironarmor: 'tieji',
+  brightarmor: 'fangtianji',
+  clothrobe: 'bailaqiang',
+  brocaderobe: 'tieqiang',
+  whitedragonarmor: 'hutouji',
+  xuanwuarmor: 'liangyinqiang',
+  // 5 武器系改版前的纯属性装备（无 weaponType），折算为同档位属性相近的新装备
+  cubuyi: 'bailaqiang',
+  pidun: 'zhuji',
+  caoxie: 'zhuji',
+  tiejia: 'tieji',
+  jinpao: 'tieqiang',
+  mingguangkai: 'fangtianji',
+  huwenpao: 'jiaogong',
+  jinsijia: 'hutouji',
+  bawangpao: 'liangyinqiang'
 }
 
 // 按 id 取装备定义
@@ -319,10 +351,20 @@ export function ownedEquipCount(id) {
   return gameData.player.inventory.equips[id] || 0
 }
 
+// 装备是否可被指定英雄佩戴：武器系必须与英雄自身武器系一致（同标签限定），否则拒绝装备
+export function isEquipUsableByHero(heroId, equipId) {
+  const hero = gameData.player.heroes[heroId]
+  const equip = getEquipById(equipId)
+  if (!hero || !equip) return false
+  return equip.weaponType === hero.weaponType
+}
+
 // 给英雄装备背包中的装备：替换原有装备（原装备退回背包），扣减背包持有数量，返回是否成功
+// 武器系不匹配（装备限制：英雄仅能装备与自身武器系相同的装备）时拒绝装备
 export function equipToHero(heroId, equipId) {
   const hero = gameData.player.heroes[heroId]
   if (!hero || !getEquipById(equipId)) return false
+  if (!isEquipUsableByHero(heroId, equipId)) return false
   if (ownedEquipCount(equipId) <= 0) return false
   gameData.player.inventory.equips[equipId] -= 1
   if (hero.equip) {

@@ -1,5 +1,5 @@
 import { Scene } from './scene.js'
-import { gameData, campaignStages, completeStage, saveGame, currentTitleEffects, rollTitleDrop, rollEquipDrop, QUALITY_META, heroEquipEffects, heroEquipSkillDmgPct } from '../data.js'
+import { gameData, campaignStages, completeStage, saveGame, currentTitleEffects, rollTitleDrop, rollEquipDrop, QUALITY_META, heroEquipEffects, heroEquipSkillDmgPct, WEAPON_TYPE_META } from '../data.js'
 import { playBattleBg, stopBattleBg, stopMainBg, playHit } from '../audio.js'
 
 // 受击反馈动画时长（秒）：立绘闪白+抖动持续时间
@@ -144,16 +144,17 @@ const TEAM_POSITIONS = {
 // 敌方小兵模板（普通关卡使用）：每种仅 1 个技能
 // atk/hp/def 为基础值，实际生成单位时按关卡的 enemyAtkScale/enemyHpScale 缩放（见 data.js CHAPTER_META）
 // 第2、3章沿用通用山贼小兵立绘（assets/bandit/），第1章「黄巾之乱」使用专属黄巾兵/黄巾弓手立绘（见下方 huangjinbing_yt/huangjingongshou）
+// weaponType：敌方武器系分布——基础步卒持枪(qiang)、精锐刀斧手用刀(dao)、专属弓手用弓(gong)
 const ENEMY_MINION_DEFS = {
   huangjinbing: {
-    name: '黄巾兵', img: 'enemy_huangjinbing',
+    name: '黄巾兵', img: 'enemy_huangjinbing', weaponType: 'qiang',
     atk: 16, hp: 220, def: 3, spd: 7, move: 3,
     skills: [
       { id: 'pinming', name: '拼命', icon: 'skill_pinming', desc: '自身攻击+20%(1回合)', type: 'buffAtk', target: 'self', value: 0.2, duration: 1 }
     ]
   },
   daofushou: {
-    name: '刀斧手', img: 'enemy_daofushou',
+    name: '刀斧手', img: 'enemy_daofushou', weaponType: 'dao',
     atk: 20, hp: 190, def: 3, spd: 8, move: 3,
     skills: [
       { id: 'zhongji', name: '重击', icon: 'skill_zhongji', desc: '单体130%伤害', type: 'damage', target: 'oneEnemy', value: 1.3 }
@@ -161,7 +162,7 @@ const ENEMY_MINION_DEFS = {
   },
   // 第1章专属：黄巾兵（近战，立绘 assets/yt/minion.png），数值/技能与通用黄巾兵一致
   huangjinbing_yt: {
-    name: '黄巾兵', img: 'enemy_yt_minion',
+    name: '黄巾兵', img: 'enemy_yt_minion', weaponType: 'qiang',
     atk: 16, hp: 220, def: 3, spd: 7, move: 3,
     skills: [
       { id: 'pinming', name: '拼命', icon: 'skill_pinming', desc: '自身攻击+20%(1回合)', type: 'buffAtk', target: 'self', value: 0.2, duration: 1 }
@@ -169,7 +170,7 @@ const ENEMY_MINION_DEFS = {
   },
   // 第1章专属：黄巾弓手（远程，立绘 assets/yt/archer.png）
   huangjingongshou: {
-    name: '黄巾弓手', img: 'enemy_yt_archer',
+    name: '黄巾弓手', img: 'enemy_yt_archer', weaponType: 'gong',
     atk: 22, hp: 170, def: 2, spd: 8, move: 3,
     skills: [
       { id: 'jingzhunshejii', name: '精准射击', icon: 'skill_zhongji', desc: '单体130%伤害', type: 'damage', target: 'oneEnemy', value: 1.3 }
@@ -180,9 +181,10 @@ const ENEMY_MINION_DEFS = {
 // 章节 BOSS 武将模板（仅第5关出现）：3 个技能，AI 按冷却/伤害择优释放
 // cooldown：技能冷却回合数（以该单位自身回合计），damage 类 target 支持：
 //   oneEnemy(单体) / rangeEnemies(以自身为中心周围 AREA_RANGE 格) / areaEnemy(以目标格为中心 radius 格范围)
+// weaponType：张角(道人佩剑)用剑、华雄(阵前猛将)用刀、吕布(方天画戟)用戟
 const BOSS_DEFS = {
   zhangjiao: {
-    name: '张角', img: 'boss_zhangjiao',
+    name: '张角', img: 'boss_zhangjiao', weaponType: 'jian',
     atk: 250, hp: 1500, def: 15, spd: 9, move: 3,
     skills: [
       { id: 'leifa', name: '雷法', icon: 'skill_leifa', desc: '3x3范围雷击130%伤害', type: 'damage', target: 'areaEnemy', value: 1.3, radius: 1, cooldown: 2 },
@@ -191,7 +193,7 @@ const BOSS_DEFS = {
     ]
   },
   huaxiong: {
-    name: '华雄', img: 'boss_huaxiong',
+    name: '华雄', img: 'boss_huaxiong', weaponType: 'dao',
     atk: 550, hp: 4200, def: 30, spd: 8, move: 3,
     skills: [
       { id: 'liezhan', name: '裂斩', icon: 'skill_liezhan', desc: '单体120%伤害', type: 'damage', target: 'oneEnemy', value: 1.2, cooldown: 1 },
@@ -200,7 +202,7 @@ const BOSS_DEFS = {
     ]
   },
   lvbu: {
-    name: '吕布', img: 'boss_lvbu',
+    name: '吕布', img: 'boss_lvbu', weaponType: 'ji',
     atk: 1700, hp: 22000, def: 80, spd: 11, move: 3,
     skills: [
       { id: 'wushuangluanwu', name: '无双乱舞', icon: 'skill_wushuangluanwu', desc: '周围3格范围120%伤害', type: 'damage', target: 'rangeEnemies', value: 1.2, cooldown: 2 },
@@ -232,7 +234,9 @@ const ITEM_DEFS = [
   { id: 'pill', name: '回春丹', desc: '我方全体恢复20%最大血量', type: 'healAll', target: 'allAlly', value: 0.2 }
 ]
 
-const SKILL_RANGE = 5 // 单体技能/道具的最大施法距离（曼哈顿距离）
+// 战斗道具（金疮药等）施法距离，以及 BOSS 专属范围技能（areaEnemy，如"雷法"）施法中心选取距离：曼哈顿距离，与武器射程统一化无关
+// 英雄/敌方单位的普攻与单体/单体友军技能（oneEnemy/oneAlly）施法距离已统一改为武器系射程（见 _inAttackRange），不再使用此常量
+const SKILL_RANGE = 5
 const AREA_RANGE = 3  // 范围技能（威震）以施法者为中心的影响半径
 
 // 怒气系统：技能按在技能列表中的顺序（第1/2/3个技能）消耗怒气 40/50/80
@@ -498,8 +502,10 @@ export class BattleScene extends Scene {
         const def = Math.round((saved.def + titleEffects.def) * allAttrMult) + equipEff.def
         // 装备绑定英雄技能伤害加成：仅当装备绑定英雄=佩戴者本人时生效，与称号技能威力%相加
         const skillDmgPct = heroEquipSkillDmgPct(heroId)
+        // 武器系取自存档英雄数据（含旧存档兜底默认值），决定该英雄的攻击射程与伤害倍率
+        const weaponType = saved.weaponType || 'jian'
         const pos = positions[i] || positions[positions.length - 1]
-        return this._mkUnit({ ...d, atk, hp, def, skillDmgPct, r: pos.r, c: pos.c }, 'hero')
+        return this._mkUnit({ ...d, atk, hp, def, skillDmgPct, weaponType, r: pos.r, c: pos.c }, 'hero')
       }),
       ...this._buildEnemiesForStage(this.stage).map(d => this._mkUnit(d, 'enemy'))
     ]
@@ -521,6 +527,8 @@ export class BattleScene extends Scene {
     this.attackSelecting = null
     this.itemSelecting = null
     this.itemDialog = false
+    this._turnStartPos = null
+    this._undoBtn = null
     this.exitConfirm = false
     this._skipPending = false
     this._logDrag = null
@@ -552,6 +560,7 @@ export class BattleScene extends Scene {
         spd: base.spd,
         move: base.move,
         img: base.img,
+        weaponType: base.weaponType,
         r: pos.r,
         c: pos.c,
         skills: base.skills
@@ -569,6 +578,7 @@ export class BattleScene extends Scene {
         spd: b.spd,
         move: b.move,
         img: b.img,
+        weaponType: b.weaponType,
         r: pos.r,
         c: pos.c,
         skills: b.skills,
@@ -593,6 +603,7 @@ export class BattleScene extends Scene {
       r: def.r,
       c: def.c,
       isBoss: !!def.isBoss, // BOSS：更大立绘、移动时不切换侧面立绘（沿用正面立绘/占位）
+      weaponType: def.weaponType || 'jian', // 武器系：决定攻击射程与伤害倍率（见 _weaponMeta/_inAttackRange/_attack）
       skillDmgPct: def.skillDmgPct || 0, // 装备绑定英雄技能伤害加成百分比（仅英雄单位可能非0）
       facing: { dr: 0, dc: side === 'hero' ? 1 : -1 }, // 英雄朝东、敌方朝西
       moved: false,
@@ -685,6 +696,8 @@ export class BattleScene extends Scene {
     this.attackSelecting = null
     this.itemSelecting = null
     this.itemDialog = false
+    // 记录本回合起始格：移动后、攻击/技能提交前可点「回退」或再次点击单位撤回移动（见 _undoMove）
+    this._turnStartPos = { r: unit.r, c: unit.c }
 
     // 眩晕：跳过本回合（敌我均自动等待后跳过）
     if (unit.stunned > 0) {
@@ -1138,27 +1151,36 @@ export class BattleScene extends Scene {
     })
   }
 
-  // 技能选目标时：先淡金高亮施法距离内的格子，再对有效目标画绿/红框（超出距离的目标不高亮、不可选）
+  // 技能选目标时：先按单位武器系射程（与普攻同一射程来源，见 _inAttackRange）高亮可达格（同移动格高亮样式，橙色以区分），
+  // 再对有效目标画绿/红框（超出武器射程的目标不高亮、不可选，与普攻射程完全一致）
   _drawSkillTargets(ctx) {
     if (!this.skillSelecting) return
     const skill = this.skillSelecting.skill
     const caster = this.skillSelecting.unit
     const cell = this.cell
+    if (skill.target !== 'oneAlly' && skill.target !== 'oneEnemy') return
+    const wt = this._weaponMeta(caster)
+    const minR = wt.minRange || 1
+    const maxR = wt.range
 
-    // 施法距离范围提示（曼哈顿距离 <= SKILL_RANGE）
+    // 施法射程范围提示：与武器攻击射程同一来源，样式与移动格高亮一致（仅换色以区分技能/移动）
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
-        if (this._manhattan(caster, { r, c }) > SKILL_RANGE) continue
+        const d = this._dist(caster, { r, c })
+        if (d < minR || d > maxR) continue
         const x = this.ox + c * cell
         const y = this.oy + r * cell
-        ctx.fillStyle = 'rgba(232,201,106,0.10)'
+        ctx.fillStyle = 'rgba(232,160,60,0.30)'
         ctx.fillRect(x, y, cell, cell)
+        ctx.strokeStyle = '#ffb454'
+        ctx.lineWidth = 2
+        ctx.strokeRect(x + 1, y + 1, cell - 2, cell - 2)
       }
     }
 
     if (skill.target === 'oneAlly') {
-      // 施法距离内的我方单位画绿框，距离外的不可选
-      this.units.filter(u => u.side === caster.side && !u.dead && this._manhattan(caster, u) <= SKILL_RANGE).forEach(u => {
+      // 射程内的我方单位画绿框，射程外的不可选
+      this.units.filter(u => u.side === caster.side && !u.dead && this._inAttackRange(caster, u)).forEach(u => {
         const x = this.ox + u.c * cell
         const y = this.oy + u.r * cell
         ctx.strokeStyle = '#7fffaa'
@@ -1166,8 +1188,8 @@ export class BattleScene extends Scene {
         ctx.strokeRect(x + 1, y + 1, cell - 2, cell - 2)
       })
     } else if (skill.target === 'oneEnemy') {
-      // 施法距离内的敌方单位画红框，距离外的不可选
-      this.units.filter(u => u.side !== caster.side && !u.dead && this._manhattan(caster, u) <= SKILL_RANGE).forEach(u => {
+      // 射程内的敌方单位画红框（可点击释放），射程外的不可选
+      this.units.filter(u => u.side !== caster.side && !u.dead && this._inAttackRange(caster, u)).forEach(u => {
         const x = this.ox + u.c * cell
         const y = this.oy + u.r * cell
         ctx.strokeStyle = '#ff5b4d'
@@ -1598,7 +1620,11 @@ export class BattleScene extends Scene {
     ctx.fillStyle = '#c9d4e3'
     ctx.font = 'bold 13px sans-serif'
     let info = cur ? ('行动：' + cur.name + '  ·  第 ' + this.round + ' 回合') : ('第 ' + this.round + ' 回合')
-    if (cur) info += '  ·  攻' + this._effAtk(cur) + ' 防' + this._effDef(cur) + ' 速' + cur.spd + ' 血' + cur.hp + '/' + cur.maxHp + ' 怒' + (cur.rage || 0) + '/' + MAX_RAGE
+    if (cur) {
+      const wt = this._weaponMeta(cur)
+      info += '  ·  ' + wt.name + '(射程' + (wt.minRange || 1) + '~' + wt.range + ')' +
+        '  ·  攻' + this._effAtk(cur) + ' 防' + this._effDef(cur) + ' 速' + cur.spd + ' 血' + cur.hp + '/' + cur.maxHp + ' 怒' + (cur.rage || 0) + '/' + MAX_RAGE
+    }
     ctx.fillText(info, infoX, row2Y)
 
     // 静态提示：回合数上限（不随行动变化，仅在无当前行动单位提示遮挡时另起一行不便，故附加到关卡名下方留白处）
@@ -1677,8 +1703,8 @@ export class BattleScene extends Scene {
       }
     }
 
-    // 第2行：使用道具 + 自动 + 结束行动，均分宽度
-    const row2Count = 3
+    // 第2行：使用道具 + 回退 + 自动 + 结束行动，均分宽度
+    const row2Count = 4
     const row2BtnW = Math.floor((innerW - (row2Count - 1) * gap) / row2Count)
     btnX = bx + pad
 
@@ -1687,6 +1713,14 @@ export class BattleScene extends Scene {
     this._itemBtn = this._drawActionBtn(ctx, btnX, row2Y, row2BtnW, rowH, {
       label: '使用道具', iconType: 'bag',
       enabled: itemEnabled, selected: this.itemDialog || !!this.itemSelecting, color: '#5a4a2a'
+    })
+    btnX += row2BtnW + gap
+
+    // 回退按钮：移动后、提交攻击/技能前可撤回移动，回到起始格重新选择落点（见 _canUndoMove/_undoMove）
+    const undoEnabled = this._canUndoMove()
+    this._undoBtn = this._drawActionBtn(ctx, btnX, row2Y, row2BtnW, rowH, {
+      label: '回退', iconType: 'undo',
+      enabled: undoEnabled, selected: false, color: '#5a4520'
     })
     btnX += row2BtnW + gap
 
@@ -1734,6 +1768,7 @@ export class BattleScene extends Scene {
     else if (opts.iconType === 'end') this._drawEndIcon(ctx, ix, iy, iconSize, enabled)
     else if (opts.iconType === 'bag') this._drawBagIcon(ctx, ix, iy, iconSize, enabled)
     else if (opts.iconType === 'auto') this._drawAutoIcon(ctx, ix, iy, iconSize, enabled)
+    else if (opts.iconType === 'undo') this._drawUndoIcon(ctx, ix, iy, iconSize, enabled)
     ctx.fillStyle = enabled ? '#fff' : '#8a9bb5'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
@@ -1821,6 +1856,31 @@ export class BattleScene extends Scene {
     ctx.moveTo(ax, ay)
     ctx.lineTo(ax - s * 0.2, ay - s * 0.04)
     ctx.lineTo(ax - s * 0.03, ay + s * 0.2)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+
+  // 代码绘制：回退图标（逆时针箭头，象征撤回移动）
+  _drawUndoIcon(ctx, x, y, s, enabled) {
+    const cx = x + s / 2
+    const cy = y + s / 2
+    const r = s * 0.34
+    ctx.save()
+    ctx.globalAlpha = enabled ? 1 : 0.5
+    ctx.strokeStyle = '#ffcf7a'
+    ctx.lineWidth = Math.max(1.5, s * 0.12)
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, Math.PI * 1.15, Math.PI * 2.5)
+    ctx.stroke()
+    const ang = Math.PI * 1.15
+    const ax = cx + Math.cos(ang) * r
+    const ay = cy + Math.sin(ang) * r
+    ctx.fillStyle = '#ffcf7a'
+    ctx.beginPath()
+    ctx.moveTo(ax, ay)
+    ctx.lineTo(ax + s * 0.2, ay - s * 0.06)
+    ctx.lineTo(ax + s * 0.04, ay + s * 0.2)
     ctx.closePath()
     ctx.fill()
     ctx.restore()
@@ -2209,11 +2269,6 @@ export class BattleScene extends Scene {
     return this._inBounds(r, c) && !this._isMountain(r, c) && !this._occupied(r, c, except)
   }
 
-  // 相邻（含斜向，切比雪夫距离=1）
-  _adjacent(a, b) {
-    return Math.max(Math.abs(a.r - b.r), Math.abs(a.c - b.c)) === 1
-  }
-
   _dist(a, b) {
     return Math.max(Math.abs(a.r - b.r), Math.abs(a.c - b.c))
   }
@@ -2311,9 +2366,22 @@ export class BattleScene extends Scene {
     return path
   }
 
-  // 当前单位可攻击的相邻敌方
+  // 单位武器系配置（射程/伤害倍率等），未知武器系兜底为剑
+  _weaponMeta(unit) {
+    return WEAPON_TYPE_META[unit.weaponType] || WEAPON_TYPE_META.jian
+  }
+
+  // 目标是否在攻击者武器系的攻击射程内（切比雪夫距离，与 _adjacent/_dist 同一距离度量）：
+  // 弓 2~3 格（无法攻击相邻目标）、枪/戟 1~2 格、刀/剑 1 格（近战）
+  _inAttackRange(attacker, target) {
+    const wt = this._weaponMeta(attacker)
+    const d = this._dist(attacker, target)
+    return d >= (wt.minRange || 1) && d <= wt.range
+  }
+
+  // 当前单位武器系射程内的可攻击敌方
   _attackableEnemies(unit) {
-    return this.units.filter(u => !u.dead && u.side !== unit.side && this._adjacent(unit, u))
+    return this.units.filter(u => !u.dead && u.side !== unit.side && this._inAttackRange(unit, u))
   }
 
   // 背击判定：攻击者位于目标朝向反向的相邻格
@@ -2332,9 +2400,25 @@ export class BattleScene extends Scene {
     unit.c = c
   }
 
-  // 攻击结算：伤害走统一公式 _calcDamage（不含技能威力项）；森林受伤-30%；背击+30%
+  // 普通攻击结算：按攻击者武器系应用伤害倍率（dmgMult），剑（迅捷）连续攻击两次，戟（横扫）额外命中
+  // 目标周围1格内的其他敌方（半伤）；基础伤害仍走统一公式 _calcDamage（不含技能威力项），森林受伤-30%、背击+30%
   _attack(attacker, target) {
-    let dmg = this._calcDamage(attacker, target)
+    const wt = this._weaponMeta(attacker)
+    if (wt.doubleHit) {
+      this._attackHit(attacker, target, wt.dmgMult * 0.75)
+      if (!target.dead) this._attackHit(attacker, target, wt.dmgMult * 0.75)
+    } else {
+      this._attackHit(attacker, target, wt.dmgMult)
+    }
+    if (wt.sweep) {
+      this.units.filter(u => !u.dead && u !== target && u.side !== attacker.side && this._dist(target, u) <= 1)
+        .forEach(u => this._attackHit(attacker, u, wt.dmgMult * 0.5, true))
+    }
+  }
+
+  // 单次打击结算（供普攻/剑连击/戟横扫复用）：sweep=true 时日志标注"横扫"
+  _attackHit(attacker, target, dmgMult, sweep) {
+    let dmg = Math.max(1, Math.round(this._calcDamage(attacker, target) * dmgMult))
     const terrain = this.map[target.r][target.c]
     if (terrain === TERRAIN.FOREST) dmg = Math.round(dmg * 0.7)
     const backstab = this._isBackstab(attacker, target)
@@ -2346,6 +2430,7 @@ export class BattleScene extends Scene {
     const tags = []
     if (backstab) tags.push('背击')
     if (terrain === TERRAIN.FOREST) tags.push('森林减伤')
+    if (sweep) tags.push('横扫')
     this._addLog(attacker.name + ' 普攻 ' + target.name + '：' + dmg + ' 伤害' + (tags.length ? '（' + tags.join('，') + '）' : ''), '#ff9b8a')
     if (target.hp <= 0) {
       target.hp = 0
@@ -2364,42 +2449,36 @@ export class BattleScene extends Scene {
       this._useSkill(caster, skill, null)
       return
     }
-    // 进入选目标状态
+    // 进入选目标状态：施法射程与该单位普攻射程同一来源（武器系射程，见 _inAttackRange），不再使用独立的固定距离
     this.skillSelecting = { skill, unit: caster }
     this.movableCells = []
+    const wt = this._weaponMeta(caster)
     if (skill.target === 'oneAlly') {
-      this.hint = '选择' + SKILL_RANGE + '格内我方单位释放「' + skill.name + '」'
+      this.hint = '选择射程内（' + wt.name + (wt.minRange || 1) + '~' + wt.range + '格）我方单位释放「' + skill.name + '」'
     } else if (skill.target === 'oneEnemy') {
-      this.hint = '选择' + SKILL_RANGE + '格内敌方单位释放「' + skill.name + '」'
+      this.hint = '选择射程内（' + wt.name + (wt.minRange || 1) + '~' + wt.range + '格）敌方单位释放「' + skill.name + '」'
     }
   }
 
-  // 技能选目标状态：点击格子后判定目标是否合法（含施法距离）并释放
+  // 技能选目标状态：点击格子后判定目标是否合法（含施法距离，与武器射程一致）并释放；
+  // 点击高亮的合法目标 → 释放技能；点击其它任何位置（超出射程/无单位/己方单位等）→ 取消本次技能选择
   _resolveSkillTarget(cell) {
     const { skill, unit: caster } = this.skillSelecting
+    const t = this._unitAt(cell.r, cell.c)
     if (skill.target === 'oneAlly') {
-      const t = this._unitAt(cell.r, cell.c)
-      if (t && !t.dead && t.side === caster.side) {
-        if (this._manhattan(caster, t) > SKILL_RANGE) {
-          this.hint = '目标过远，需' + SKILL_RANGE + '格内（当前' + this._manhattan(caster, t) + '格）'
-          return
-        }
+      if (t && !t.dead && t.side === caster.side && this._inAttackRange(caster, t)) {
         this._useSkill(caster, skill, cell)
-      } else {
-        this.hint = '请选择我方单位'
+        return
       }
     } else if (skill.target === 'oneEnemy') {
-      const t = this._unitAt(cell.r, cell.c)
-      if (t && !t.dead && t.side !== caster.side) {
-        if (this._manhattan(caster, t) > SKILL_RANGE) {
-          this.hint = '目标过远，需' + SKILL_RANGE + '格内（当前' + this._manhattan(caster, t) + '格）'
-          return
-        }
+      if (t && !t.dead && t.side !== caster.side && this._inAttackRange(caster, t)) {
         this._useSkill(caster, skill, cell)
-      } else {
-        this.hint = '请选择敌方单位'
+        return
       }
     }
+    // 点击外部/无效目标：取消技能选择
+    this.skillSelecting = null
+    this._setHint()
   }
 
   // 释放技能入口：怒气校验后，第3个技能（大招）先播放过场动画，动画结束后才真正结算；其余技能直接结算
@@ -2759,24 +2838,29 @@ export class BattleScene extends Scene {
   }
 
   // 用 BFS 可达范围（this.move 步内）寻找本回合最佳移动落点：
-  // 优先选择能贴近目标发起攻击的格子（相邻且步数最少）；若本回合无法贴近，则选择能尽量靠近目标的格子，
-  // 避免"移动一步就不管距离"的随意移动，充分利用移动力。
+  // 优先选择能落入自身武器系攻击射程[minRange,maxRange]的格子（步数最少）；若本回合无法进入射程，
+  // 则选择能尽量贴近射程的格子，避免"移动一步就不管距离"的随意移动，充分利用移动力。
   _aiFindMoveDest(unit, target) {
     if (!target) return null
+    const wt = this._weaponMeta(unit)
+    const minR = wt.minRange || 1
+    const maxR = wt.range
     const { seen } = this._bfsReachable(unit)
     let dest = null
     let bestSteps = Infinity
-    let bestDist = Infinity
+    let bestDistToRange = Infinity
     for (const key in seen) {
       const [r, c] = key.split(',').map(Number)
       if (r === unit.r && c === unit.c) continue
       const steps = seen[key]
       const d = this._dist({ r, c }, target)
-      if (d <= 1) {
-        if (steps < bestSteps) { bestSteps = steps; bestDist = d; dest = { r, c } }
-      } else if (bestDist > 1) {
-        if (d < bestDist || (d === bestDist && steps < bestSteps)) {
-          bestDist = d; bestSteps = steps; dest = { r, c }
+      const inRange = d >= minR && d <= maxR
+      if (inRange) {
+        if (bestDistToRange > 0 || steps < bestSteps) { bestSteps = steps; bestDistToRange = 0; dest = { r, c } }
+      } else if (bestDistToRange > 0) {
+        const distToRange = d > maxR ? d - maxR : (minR - d)
+        if (distToRange < bestDistToRange || (distToRange === bestDistToRange && steps < bestSteps)) {
+          bestDistToRange = distToRange; bestSteps = steps; dest = { r, c }
         }
       }
     }
@@ -2869,7 +2953,8 @@ export class BattleScene extends Scene {
       return heroes.filter(h => Math.max(Math.abs(h.r - center.r), Math.abs(h.c - center.c)) <= radius)
     }
     if (skill.target === 'oneEnemy') {
-      const inRange = heroes.filter(h => this._manhattan(unit, h) <= SKILL_RANGE)
+      // 单体技能射程与该单位普攻射程同一来源（武器系射程），与玩家手动施法选目标逻辑一致
+      const inRange = heroes.filter(h => this._inAttackRange(unit, h))
       const best = this._aiChooseAttackTarget(unit, inRange, skill.value || 1)
       return best ? [best] : []
     }
@@ -2879,15 +2964,21 @@ export class BattleScene extends Scene {
   // 实际释放：为需要选目标的技能（oneEnemy/areaEnemy/oneAlly）自动按优先级选取施法距离内的最优目标；释放成功则记录冷却
   _aiCastSkill(unit, skill, heroes) {
     let cell = null
-    if (skill.target === 'oneEnemy' || skill.target === 'areaEnemy') {
-      // 目标为敌方：重新过滤存活且在场的候选（heroes 可能包含本回合内已阵亡的单位），再选取最优目标
+    if (skill.target === 'oneEnemy') {
+      // 单体伤害技能：射程与普攻同一来源（武器系射程），不再享有超出武器射程的额外施法距离
+      const inRange = heroes.filter(h => !h.dead && this.units.indexOf(h) !== -1 && this._inAttackRange(unit, h))
+      const best = this._aiChooseAttackTarget(unit, inRange, skill.value || 1)
+      if (!best || best.dead || !this._inBounds(best.r, best.c)) return false
+      cell = { r: best.r, c: best.c }
+    } else if (skill.target === 'areaEnemy') {
+      // BOSS 专属范围技能（如"雷法"）：施法中心选取距离沿用既有 SKILL_RANGE，不受武器射程统一化影响，避免削弱 BOSS 强度
       const inRange = heroes.filter(h => !h.dead && this.units.indexOf(h) !== -1 && this._manhattan(unit, h) <= SKILL_RANGE)
       const best = this._aiChooseAttackTarget(unit, inRange, skill.value || 1)
       if (!best || best.dead || !this._inBounds(best.r, best.c)) return false
       cell = { r: best.r, c: best.c }
     } else if (skill.target === 'oneAlly') {
-      // 目标为我方：施法距离内选血量百分比最低的我方存活单位（治疗/单体增益类技能）
-      const allies = this.units.filter(u => u.side === unit.side && !u.dead && this._manhattan(unit, u) <= SKILL_RANGE)
+      // 目标为我方：射程内（武器系射程，与普攻/oneEnemy 技能同一来源）选血量百分比最低的我方存活单位（治疗/单体增益类技能）
+      const allies = this.units.filter(u => u.side === unit.side && !u.dead && this._inAttackRange(unit, u))
       if (!allies.length) return false
       let best = allies[0]
       allies.forEach(a => { if (a.hp / a.maxHp < best.hp / best.maxHp) best = a })
@@ -2905,6 +2996,30 @@ export class BattleScene extends Scene {
     if (!cur || cur.side !== 'hero') { this.hint = ''; return }
     if (!cur.moved) this.hint = '点绿格移动，点敌方攻击，或点左侧普攻/技能'
     else this.hint = '点敌方攻击，或点左侧普攻/技能/结束'
+  }
+
+  // 是否允许撤回移动：仅当前我方单位、非自动战斗、已移动、且尚未提交攻击/技能（含大招过场中）时可用
+  _canUndoMove() {
+    const cur = this.current
+    if (!cur || cur.side !== 'hero' || this.autoBattle || this._skipPending || cur.moving) return false
+    if (this.cutscene) return false
+    // 只能是当前回合正在行动的单位（与回合队列中的行动对象严格同一引用），已结束行动的单位一律不可回退
+    if (cur !== this.queue[this.qIdx] || cur.acted) return false
+    return !!(cur.moved && !cur.attacked && !cur.skillUsed && this._turnStartPos)
+  }
+
+  // 撤回移动：单位回到本回合起始格，重新显示可移动格供玩家再次选择；仅在未提交攻击/技能前允许（见 _canUndoMove）
+  _undoMove() {
+    if (!this._canUndoMove()) return
+    const cur = this.current
+    cur.r = this._turnStartPos.r
+    cur.c = this._turnStartPos.c
+    cur.moved = false
+    this.attackSelecting = null
+    this.skillSelecting = null
+    this.itemSelecting = null
+    this.movableCells = this._movableCells(cur)
+    this.hint = '已回退，点绿格移动，点敌方攻击，或点左侧普攻/技能'
   }
 
   // ---- 交互 ----
@@ -3011,6 +3126,13 @@ export class BattleScene extends Scene {
       return
     }
 
+    // 回退按钮：撤回本回合移动，回到起始格重新选择落点
+    if (this._undoBtn && this._undoBtn.enabled &&
+      this.hitRect(x, y, this._undoBtn.x, this._undoBtn.y, this._undoBtn.w, this._undoBtn.h)) {
+      this._undoMove()
+      return
+    }
+
     // 结束行动按钮
     if (this._endBtn && this._endBtn.enabled &&
       this.hitRect(x, y, this._endBtn.x, this._endBtn.y, this._endBtn.w, this._endBtn.h)) {
@@ -3073,7 +3195,7 @@ export class BattleScene extends Scene {
       const cell = this._cellAt(x, y)
       if (cell) {
         const target = this._unitAt(cell.r, cell.c)
-        if (target && target.side === 'enemy' && !cur.attacked && this._adjacent(cur, target)) {
+        if (target && target.side === 'enemy' && !cur.attacked && this._inAttackRange(cur, target)) {
           this._attack(cur, target)
           cur.attacked = true
           this.movableCells = []
@@ -3104,8 +3226,8 @@ export class BattleScene extends Scene {
       return
     }
 
-    // 点相邻敌方 → 直接攻击（与左侧普攻按钮并存）
-    if (!cur.attacked && target && target.side === 'enemy' && this._adjacent(cur, target)) {
+    // 点射程内敌方 → 直接攻击（与左侧普攻按钮并存）
+    if (!cur.attacked && target && target.side === 'enemy' && this._inAttackRange(cur, target)) {
       this._attack(cur, target)
       cur.attacked = true
       this.movableCells = []
@@ -3113,10 +3235,14 @@ export class BattleScene extends Scene {
       return
     }
 
-    // 点当前单位 → 重新显示可移动格
+    // 点当前单位 → 未移动时重新显示可移动格；已移动但未提交攻击/技能时视为「点单位再次点击=撤回移动」
     if (target === cur && !cur.moved) {
       this.movableCells = this._movableCells(cur)
       this.hint = '点绿格移动，点敌方攻击，或点左侧普攻/技能'
+      return
+    }
+    if (target === cur && this._canUndoMove()) {
+      this._undoMove()
       return
     }
 

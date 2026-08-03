@@ -40,6 +40,8 @@ import {
   ownedEquipCount,
   equipToHero,
   unequipHero,
+  isEquipUsableByHero,
+  WEAPON_TYPE_META,
   HERO_UNLOCK_SHARDS,
   canUnlockHero,
   unlockHero,
@@ -1401,7 +1403,7 @@ export class MainCityScene extends Scene {
         ctx.font = 'bold 16px sans-serif'
         ctx.textAlign = 'left'
         ctx.textBaseline = 'top'
-        ctx.fillText(isEquip ? `${g.name}（${QUALITY_META[g.quality].name}）` : g.name, listX + 12, ry + 8)
+        ctx.fillText(isEquip ? `${g.name}（${QUALITY_META[g.quality].name}·${(WEAPON_TYPE_META[g.weaponType] || WEAPON_TYPE_META.jian).name}）` : g.name, listX + 12, ry + 8)
         // 说明（左中，按可用宽度换行）
         ctx.fillStyle = '#c9d4e3'
         ctx.font = '13px sans-serif'
@@ -1543,7 +1545,7 @@ export class MainCityScene extends Scene {
       ownedEquips.forEach((e, ei) => {
         ctx.fillStyle = QUALITY_META[e.quality].color
         ctx.font = '15px sans-serif'
-        ctx.fillText(e.name, lx, ly)
+        ctx.fillText(`${e.name}【${(WEAPON_TYPE_META[e.weaponType] || WEAPON_TYPE_META.jian).name}】`, lx, ly)
         ctx.fillStyle = '#c9d4e3'
         ctx.textAlign = 'right'
         ctx.fillText(`x${ownedEquipCount(e.id)}`, rx, ly)
@@ -1666,7 +1668,8 @@ export class MainCityScene extends Scene {
             this.heroUnlockBtns.push({ id, x: bx, y: by, w: btnW, h: btnH })
           }
         } else {
-          ctx.fillText(`${meta.name}  Lv.${h.level}`, tx, ry + 10)
+          const wtMeta = WEAPON_TYPE_META[h.weaponType] || WEAPON_TYPE_META.jian
+          ctx.fillText(`${meta.name}  Lv.${h.level}  【${wtMeta.name}】`, tx, ry + 10)
           ctx.fillStyle = '#c9d4e3'
           ctx.font = '13px sans-serif'
           ctx.fillText(`攻击 ${h.atk}  血量 ${h.hp}  防御 ${h.def}`, tx, ry + 34)
@@ -1715,11 +1718,13 @@ export class MainCityScene extends Scene {
   }
 
   // 装备弹窗：某英雄持有的装备列表（含当前已装备），滚动展示，点击未装备项装备之，点击已装备项卸下
+  // 装备限制：仅列出与该英雄武器系相同的装备（同标签限定），其余武器系的装备完全不展示（非置灰）
   _drawEquipDialog(ctx) {
     const p = this._dialogPanel()
     const heroId = this.equipHeroId
     const meta = HERO_META[heroId]
-    this._drawDialogFrame(ctx, `装备 - ${meta ? meta.name : ''}`)
+    const wtMeta = WEAPON_TYPE_META[meta && meta.weaponType] || WEAPON_TYPE_META.jian
+    this._drawDialogFrame(ctx, `装备 - ${meta ? meta.name : ''}【${wtMeta.name}】`)
 
     const hero = gameData.player.heroes[heroId]
     const listX = p.x + 16
@@ -1732,14 +1737,15 @@ export class MainCityScene extends Scene {
     // 说明文字可用宽度：预留右侧状态文案（已装备/持有xN）所占的列宽
     const descMaxW = listW - 28 - 150
 
-    const rows = this._sortEquipList(EQUIP_LIST.filter(e => ownedEquipCount(e.id) > 0 || hero.equip === e.id))
+    // 仅展示与英雄武器系（weaponType）相同的装备：非同武器系的持有装备完全隐藏，不在此列表出现
+    const rows = this._sortEquipList(EQUIP_LIST.filter(e => e.weaponType === hero.weaponType && (ownedEquipCount(e.id) > 0 || hero.equip === e.id)))
 
     if (!rows.length) {
       ctx.fillStyle = '#8a93a8'
       ctx.font = '15px sans-serif'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText('暂无持有装备，先去商店购买', listX + listW / 2, listY + listH / 2)
+      ctx.fillText(`暂无【${wtMeta.name}】类持有装备，先去商店购买`, listX + listW / 2, listY + listH / 2)
       this.equipRows = []
       this._equipMaxScroll = 0
       return
@@ -2294,6 +2300,9 @@ export class MainCityScene extends Scene {
           const eq = getEquipById(id)
           if (hero.equip === id) {
             if (unequipHero(heroId)) this.showToast(`已卸下：${eq.name}`)
+          } else if (!isEquipUsableByHero(heroId, id)) {
+            // 装备限制：武器系不匹配，拒绝装备并提示（正常流程下列表已按武器系过滤，此处为兜底保护）
+            this.showToast(`武器系不符，${HERO_META[heroId].name}无法装备【${(WEAPON_TYPE_META[eq.weaponType] || WEAPON_TYPE_META.jian).name}】类装备`)
           } else {
             if (equipToHero(heroId, id)) this.showToast(`已装备：${eq.name}`)
           }
