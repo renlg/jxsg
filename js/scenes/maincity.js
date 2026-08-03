@@ -21,7 +21,7 @@ import {
   FACTION_COLOR,
   heroUpgradeCost,
   canUpgradeHero,
-  upgradeHero,
+  upgradeHeroMax,
   isSoundOn,
   isMusicOn,
   toggleSound,
@@ -1691,7 +1691,7 @@ export class MainCityScene extends Scene {
           ctx.font = 'bold 14px sans-serif'
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
-          ctx.fillText('升级', bx + btnW / 2, upgBy + btnH / 2)
+          ctx.fillText('一键升级', bx + btnW / 2, upgBy + btnH / 2)
           this.heroUpgradeBtns.push({ id, x: bx, y: upgBy, w: btnW, h: btnH })
 
           ctx.fillStyle = '#3a4a68'
@@ -2277,8 +2277,9 @@ export class MainCityScene extends Scene {
           this._openTeamSelect(lv)
         } else if (target.type === 'upgrade') {
           const id = target.hb.id
-          if (upgradeHero(id)) {
-            this.showToast(`${HERO_META[id].name} 升级成功！`)
+          const { levels, cost } = upgradeHeroMax(id)
+          if (levels > 0) {
+            this.showToast(`${HERO_META[id].name} 升级 ${levels} 级！消耗碎片 ${cost}`)
           } else {
             this.showToast('碎片不足，无法升级')
           }

@@ -345,6 +345,8 @@ export class BattleScene extends Scene {
       ['side_daofushou', 'assets/side/boss.png'],
       // 第1章黄巾兵移动动画沿用通用小兵侧面立绘；黄巾弓手暂无侧面立绘，移动时回退显示正面立绘
       ['side_minion', 'assets/side/minion.png'],
+      // 部分敌方/BOSS专属技能图标尚未配齐美术资源（如 pinming/zhongji/leifa 等），文件缺失时
+      // 由 _loadImages 的 img.onerror 统一回退为占位图标（见 _skillIconFallback），不影响加载流程
       ['skill_rende', 'assets/skills/rende.png'],
       ['skill_guwu', 'assets/skills/guwu.png'],
       ['skill_jiuyuan', 'assets/skills/jiuyuan.png'],
@@ -464,10 +466,37 @@ export class BattleScene extends Scene {
     this.imgList.forEach(([key, path]) => {
       const img = tt.createImage()
       img.onload = () => { this.imgs[key] = img; finish() }
-      // 加载失败也计数，避免卡在 loading
-      img.onerror = () => { finish() }
+      // 加载失败也计数，避免卡在 loading；技能图标文件缺失时回退为统一占位图标，
+      // 避免技能按钮出现空白/破图（部分敌方/BOSS专属技能尚未配齐美术资源，见 imgList 注释）
+      img.onerror = () => {
+        if (key.indexOf('skill_') === 0) this.imgs[key] = this._skillIconFallback()
+        finish()
+      }
       img.src = path
     })
+  }
+
+  // 技能图标缺失时的统一占位图（离屏 canvas 绘制一次并缓存复用）：深色圆形徽章+"技"字
+  _skillIconFallback() {
+    if (this._skillFallbackImg) return this._skillFallbackImg
+    const off = tt.createCanvas()
+    off.width = 64
+    off.height = 64
+    const ctx = off.getContext('2d')
+    ctx.fillStyle = '#3a4258'
+    ctx.beginPath()
+    ctx.arc(32, 32, 30, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.strokeStyle = '#e8c96a'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    ctx.fillStyle = '#e8c96a'
+    ctx.font = 'bold 28px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('技', 32, 33)
+    this._skillFallbackImg = off
+    return this._skillFallbackImg
   }
 
   // 初始化/重置战斗：地图、单位、行动队列、日志、回合
@@ -1239,10 +1268,17 @@ export class BattleScene extends Scene {
 
     // 立绘等比缩放（不裁剪），高度约为格高的 1.7 倍（BOSS 更大，2.2 倍），比格子更高更显眼
     const aspect = (img && img.width) ? img.width / img.height : 0.62
-    const portraitH = cell * (u.isBoss ? 2.2 : 1.7)
+    let portraitH = cell * (u.isBoss ? 2.2 : 1.7)
     let portraitW = portraitH * aspect
-    portraitW = Math.min(portraitW, cell * 1.4) // 限制最大宽度，避免过度遮挡相邻格
-    const portraitTop = feetY - portraitH
+    // 限制最大宽度，避免过度遮挡相邻格；正方形/宽幅立绘超宽时需连同高度一起等比缩小，
+    // 否则只压宽不压高会导致立绘被横向压扁（宽高比失真）
+    const maxW = cell * 1.4
+    if (portraitW > maxW) {
+      const shrink = maxW / portraitW
+      portraitW *= shrink
+      portraitH *= shrink
+    }
+    const portraitTop = feetY - portraitH // 缩放后按脚底位置重新锚定，立绘始终贴地不悬空/不下沉
     const px = cx - portraitW / 2
 
     // 受击抖动：hitT 衰减期内小幅高频震荡（仅立绘偏移，血条/名字/阴影保持原位）
