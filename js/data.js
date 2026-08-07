@@ -745,29 +745,19 @@ export function canUpgradeHero(id) {
   return h.shards >= heroUpgradeCost(h.level)
 }
 
-// 一键升级：碎片足够则连续升级直至不足为止，公式与单级升级完全一致（仅将逐级重算合并为最终一次），
-// 返回本次提升的等级数与消耗的碎片总数，供 UI 展示「升级 N 级，消耗 M 碎片」
-export function upgradeHeroMax(id) {
+// 执行英雄升级：扣碎片、等级+1，攻/血按基础值 * 1.15^(等级-1) 重新计算，返回是否成功
+export function upgradeHero(id) {
+  if (!canUpgradeHero(id)) return false
   const h = gameData.player.heroes[id]
-  if (!h || !h.unlocked) return { levels: 0, cost: 0 }
   const base = HERO_BASE[id]
-  let levels = 0
-  let cost = 0
-  while (h.shards >= heroUpgradeCost(h.level)) {
-    const c = heroUpgradeCost(h.level)
-    h.shards -= c
-    h.level += 1
-    cost += c
-    levels += 1
-  }
-  if (levels > 0) {
-    const mult = Math.pow(1.15, h.level - 1)
-    h.atk = Math.round(base.atk * mult)
-    h.hp = Math.round(base.hp * mult)
-    h.def = base.def
-    saveGame()
-  }
-  return { levels, cost }
+  h.shards -= heroUpgradeCost(h.level)
+  h.level += 1
+  const mult = Math.pow(1.15, h.level - 1)
+  h.atk = Math.round(base.atk * mult)
+  h.hp = Math.round(base.hp * mult)
+  h.def = base.def
+  saveGame()
+  return true
 }
 
 // ========== 战力计算（动态，供头像战力显示/出征弹窗推荐战力对照使用）==========

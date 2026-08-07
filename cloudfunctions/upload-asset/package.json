@@ -1,0 +1,11 @@
+{
+  "name": "upload-asset",
+  "version": "1.0.0",
+  "description": "素材上传中转：HTTP 收 base64 文件写抖音云对象存储桶",
+  "main": "index.js",
+  "license": "ISC",
+  "dependencies": {
+    "@open-dy/node-server-sdk": "^1.0.0",
+    "@volcengine/tos-sdk": "^2.6.10"
+  }
+}

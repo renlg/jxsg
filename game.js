@@ -1,15 +1,13 @@
 import { Game } from './js/game.js'
-import { MenuScene } from './js/scenes/menu.js'
-import { MapScene } from './js/scenes/map.js'
-import { MainCityScene } from './js/scenes/maincity.js'
-import { BattleScene } from './js/scenes/battle.js'
+import { StartScene } from './js/scenes/start.js'
+import { MainScene } from './js/scenes/main.js'
+import { HomeScene } from './js/scenes/home.js'
 
 const game = new Game()
-game.register('menu', MenuScene)
-game.register('map', MapScene)
-game.register('maincity', MainCityScene)
-game.register('battle', BattleScene)
-game.start('menu')
+game.register('start', StartScene)
+game.register('main', MainScene)
+game.register('home', HomeScene)
+game.start('start')
 
 // 暴露到全局方便调试
 GameGlobal.game = game
