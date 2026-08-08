@@ -177,10 +177,10 @@ export class HomeScene extends Scene {
     this.topBarY = 10
     this.topBarH = this.topBarY + this.avatarSize + 8
 
-    // 右上角预留 110px 给抖音系统胶囊；退出按钮紧靠预留区左侧，始终位于战斗页最上方。
+    // 右上角预留 138px 给抖音系统胶囊；退出按钮紧靠预留区左侧，始终位于战斗页最上方。
     const topActionW = 52
     const topActionH = 28
-    const capsuleReserveW = 110
+    const capsuleReserveW = 138
     const topActionRight = w - capsuleReserveW - 8
     this.exitBtnRect = { x: topActionRight - topActionW, y: this.topBarY + 6, w: topActionW, h: topActionH }
     this.speed = 1
@@ -1602,6 +1602,13 @@ export class HomeScene extends Scene {
     grad.addColorStop(1, 'rgba(0,0,0,0.15)')
     ctx.fillStyle = grad
     ctx.fillRect(lawnX, lawnY, this.lawnW, this.lawnH)
+
+    ctx.save()
+    ctx.strokeStyle = 'rgba(94, 72, 46, 0.85)'
+    ctx.lineWidth = 4
+    this._roundRect(ctx, lawnX - 2, lawnY - 2, this.lawnW + 4, this.lawnH + 4, 8)
+    ctx.stroke()
+    ctx.restore()
   }
 
   // 最左列为不可部署的石柱装饰；素材加载完成前使用 Canvas 石块占位。
