@@ -178,6 +178,8 @@ export class HomeScene extends Scene {
     const capsuleReserveW = 110
     const topActionRight = w - capsuleReserveW - 8
     this.exitBtnRect = { x: topActionRight - topActionW, y: this.topBarY + 6, w: topActionW, h: topActionH }
+    this.speed = 1
+    this.speedBtnRect = { x: this.leftPad + this.avatarSize + 12, y: this.topBarY + 6, w: 44, h: topActionH }
     // 金币栏紧邻退出按钮左侧；渲染时会按实际数字宽度微调 coinCx。
     this.coinCx = this.exitBtnRect.x - 10 - 40 - 6 - 10
     this.coinCy = this.exitBtnRect.y + this.exitBtnRect.h / 2
@@ -803,7 +805,8 @@ export class HomeScene extends Scene {
   }
 
   update(dt) {
-    this.animT = (this.animT || 0) + dt
+    const sdt = dt * this.speed
+    this.animT = (this.animT || 0) + sdt
 
     if (this.pull) {
       const p = this.pull
@@ -823,14 +826,14 @@ export class HomeScene extends Scene {
     }
 
     if (!this.gameOver && !this.levelCleared) {
-      this.battleTime = Math.min(BATTLE_TIME_LIMIT, this.battleTime + dt)
-      this._updateMonsterSpawn(dt)
-      this._updateMonsters(dt)
-      this._updateAttacks(dt)
-      this._updateHeals(dt)
-      this._updatePendingHits(dt)
-      this._updateProjectiles(dt)
-      this._updateFx(dt)
+      this.battleTime = Math.min(BATTLE_TIME_LIMIT, this.battleTime + sdt)
+      this._updateMonsterSpawn(sdt)
+      this._updateMonsters(sdt)
+      this._updateAttacks(sdt)
+      this._updateHeals(sdt)
+      this._updatePendingHits(sdt)
+      this._updateProjectiles(sdt)
+      this._updateFx(sdt)
       this._checkGameOver()
       this._checkLevelCleared()
     }
@@ -1528,11 +1531,12 @@ export class HomeScene extends Scene {
     ctx.fillText(goldText, 0, 0)
     ctx.restore()
 
+    this._renderTopActionButton(ctx, this.speedBtnRect, `x${this.speed}`, '#f2c14e')
     this._renderTopActionButton(ctx, this.exitBtnRect, '退出')
   }
 
   // 战斗页顶部操作按钮沿用大厅的深色底、金色描边风格。
-  _renderTopActionButton(ctx, rect, label) {
+  _renderTopActionButton(ctx, rect, label, textColor = '#fff3c4') {
     ctx.fillStyle = 'rgba(28, 22, 14, 0.88)'
     this._roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 9)
     ctx.fill()
@@ -1540,7 +1544,7 @@ export class HomeScene extends Scene {
     ctx.lineWidth = 2
     this._roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 9)
     ctx.stroke()
-    ctx.fillStyle = '#fff3c4'
+    ctx.fillStyle = textColor
     ctx.font = 'bold 14px sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -2669,6 +2673,11 @@ export class HomeScene extends Scene {
   }
 
   onTouch(x, y) {
+    if (this.speedBtnRect && this._hitRect(this.speedBtnRect, x, y)) {
+      this.speed = this.speed >= 3 ? 1 : this.speed + 1
+      return
+    }
+
     if (this.exitBtnRect && this._hitRect(this.exitBtnRect, x, y)) {
       this.game.switch('main')
       return
