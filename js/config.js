@@ -13,13 +13,28 @@ export function assetUrl(p) {
 
 // 已确认存在于本地文件系统的缓存路径，避免每次进场景都调用 accessSync 做同步 IO
 const _localPathCache = {}
+// downloadFile 真机实现可能忽略 filePath，记录每个资源实际返回的可用路径
+const _pathMap = {}
 // 同一路径的下载 Promise 去重：防止多个场景/多次预加载并发对同一文件重复 downloadFile
 const _downloadingPromises = {}
+// 环境能力诊断每个会话只打印一次
+let _diagLogged = false
 
 // 真机 tt.createImage()/InnerAudioContext 对网络 URL 不遵守 HTTP 缓存，每次切场景都会重新从
 // TOS 拉取同一批素材；这里把远程素材首次下载后落盘到 USER_DATA_PATH，后续直接读本地文件路径，
 // 从根本上避免重复联网下载。REMOTE_ASSETS 为 false（本地开发）时行为与 assetUrl 完全一致。
 export async function getLocalAssetPath(p) {
+  if (!_diagLogged) {
+    _diagLogged = true
+    console.log('[Assets] env:', JSON.stringify({
+      hasEnv: typeof tt !== 'undefined',
+      hasUserDataPath: !!(typeof tt !== 'undefined' && tt.env && tt.env.USER_DATA_PATH),
+      userDataPath: (typeof tt !== 'undefined' && tt.env && tt.env.USER_DATA_PATH) || null,
+      hasDownload: typeof tt !== 'undefined' && typeof tt.downloadFile === 'function',
+      hasFSM: typeof tt !== 'undefined' && typeof tt.getFileSystemManager === 'function'
+    }))
+  }
+
   if (!REMOTE_ASSETS) return p
 
   const remoteUrl = REMOTE_BASE + p
@@ -29,6 +44,7 @@ export async function getLocalAssetPath(p) {
 
   const localPath = tt.env.USER_DATA_PATH + '/' + p.replace(/\//g, '_')
 
+  if (_pathMap[p]) return _pathMap[p]
   if (_localPathCache[localPath]) return localPath
 
   try {
@@ -46,9 +62,17 @@ export async function getLocalAssetPath(p) {
       url: remoteUrl,
       filePath: localPath,
       success: (res) => {
-        if (res && (res.statusCode === 200 || res.filePath)) {
+        const actualPath = (res && (res.filePath || res.tempFilePath)) || localPath
+        console.log('[Assets] dl ok:', p, '-> assumed', localPath, '| actual', actualPath || '?', '| status', res && res.statusCode)
+        if (res && (res.statusCode === 200 || res.filePath || res.tempFilePath)) {
+          _pathMap[p] = actualPath
           _localPathCache[localPath] = true
-          resolve(localPath)
+          if (typeof actualPath === 'string' && actualPath && actualPath !== localPath) {
+            _localPathCache[actualPath] = true
+            resolve(actualPath)
+          } else {
+            resolve(localPath)
+          }
         } else {
           console.warn('[Assets] 下载状态异常，回退远程地址:', p, res)
           resolve(remoteUrl)
