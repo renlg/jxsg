@@ -1,7 +1,7 @@
 import { Scene } from './scene.js'
 import { isMusicOn, isSoundOn, toggleMusic, toggleSound } from '../data.js'
 import { playMainBg, stopBattleBg, stopMainBg } from '../audio.js'
-import { assetUrl } from '../config.js'
+import { getLocalAssetPath } from '../config.js'
 
 const HERO_NAMES = ['guanyu', 'liubei', 'zhangfei', 'zhaoyun', 'zhugeliang']
 
@@ -42,7 +42,7 @@ export class MainScene extends Scene {
     this.bgImg = null
     const bg = tt.createImage()
     bg.onload = () => { this.bgImg = bg }
-    bg.src = assetUrl('assets/pvz_bg.jpg')
+    getLocalAssetPath('assets/pvz_bg.jpg').then(path => { bg.src = path })
 
     // safeArea 固定按 0 处理；资源栏内容仍保留至少 30px 的横向安全边距。
     this.safeArea = 0
@@ -152,7 +152,7 @@ export class MainScene extends Scene {
     const fallback = () => {
       const img = tt.createImage()
       img.onload = () => { this.avatarImg = img }
-      img.src = assetUrl('assets/pvz_heroes/guanyu.png')
+      getLocalAssetPath('assets/pvz_heroes/guanyu.png').then(path => { img.src = path })
     }
     if (typeof tt !== 'undefined' && tt.getUserInfo) {
       tt.getUserInfo({
@@ -177,7 +177,7 @@ export class MainScene extends Scene {
     HERO_NAMES.forEach(name => {
       const img = tt.createImage()
       img.onload = () => { this.heroImgs[name] = img }
-      img.src = assetUrl(`assets/pvz_heroes/${name}.png`)
+      getLocalAssetPath(`assets/pvz_heroes/${name}.png`).then(path => { img.src = path })
     })
   }
 

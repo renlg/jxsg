@@ -1,6 +1,6 @@
 import { Scene } from './scene.js'
 import { playAttack, playBattleBg, playHit, stopBattleBg, stopMainBg } from '../audio.js'
-import { assetUrl } from '../config.js'
+import { getLocalAssetPath } from '../config.js'
 
 const HERO_NAMES = ['guanyu', 'liubei', 'zhangfei', 'zhaoyun', 'zhugeliang']
 
@@ -446,7 +446,7 @@ export class HomeScene extends Scene {
     const fallback = () => {
       const img = tt.createImage()
       img.onload = () => { this.avatarImg = img }
-      img.src = assetUrl('assets/pvz_heroes/guanyu.png')
+      getLocalAssetPath('assets/pvz_heroes/guanyu.png').then(path => { img.src = path })
     }
     if (typeof tt !== 'undefined' && tt.getUserInfo) {
       tt.getUserInfo({
@@ -472,14 +472,14 @@ export class HomeScene extends Scene {
 
   _loadImages() {
     const list = [
-      ['bg', assetUrl('assets/pvz_bg.jpg')],
-      ['g1', assetUrl('assets/pvz_tiles/草地1_鲜绿.png')],
-      ['g2', assetUrl('assets/pvz_tiles/草地2_深绿.png')],
-      ['g3', assetUrl('assets/pvz_tiles/草地3_野花.png')],
-      ['g4', assetUrl('assets/pvz_tiles/草地4_干草.png')],
-      ['dirt', assetUrl('assets/pvz_tiles/泥土1.png')]
+      ['bg', 'assets/pvz_bg.jpg'],
+      ['g1', 'assets/pvz_tiles/草地1_鲜绿.png'],
+      ['g2', 'assets/pvz_tiles/草地2_深绿.png'],
+      ['g3', 'assets/pvz_tiles/草地3_野花.png'],
+      ['g4', 'assets/pvz_tiles/草地4_干草.png'],
+      ['dirt', 'assets/pvz_tiles/泥土1.png']
     ]
-    const heroList = this.hand.map(card => [card.heroId, assetUrl(`assets/pvz_heroes/${card.heroId}.png`)])
+    const heroList = this.hand.map(card => [card.heroId, `assets/pvz_heroes/${card.heroId}.png`])
     const total = list.length + heroList.length
     let loadedCount = 0
     const finish = () => {
@@ -490,13 +490,13 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.imgs[key] = img; finish() }
       img.onerror = () => { console.error('[Home] 图片加载失败:', key, path); finish() }
-      img.src = path
+      getLocalAssetPath(path).then(localPath => { img.src = localPath })
     })
     heroList.forEach(([key, path]) => {
       const img = tt.createImage()
       img.onload = () => { this.heroImgs[key] = img; finish() }
       img.onerror = () => { console.error('[Home] 武将头像加载失败:', key, path); finish() }
-      img.src = path
+      getLocalAssetPath(path).then(localPath => { img.src = localPath })
     })
   }
 
@@ -505,11 +505,11 @@ export class HomeScene extends Scene {
     const missingHeroIds = [...new Set(this.hand.map(card => card.heroId))]
       .filter(heroId => !this.heroImgs[heroId])
     missingHeroIds.forEach(heroId => {
-      const path = assetUrl(`assets/pvz_heroes/${heroId}.png`)
+      const path = `assets/pvz_heroes/${heroId}.png`
       const img = tt.createImage()
       img.onload = () => { this.heroImgs[heroId] = img }
       img.onerror = () => { console.error('[Home] 武将头像加载失败:', heroId, path) }
-      img.src = path
+      getLocalAssetPath(path).then(localPath => { img.src = localPath })
     })
   }
 
@@ -522,7 +522,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.zyImgs[key] = img }
       img.onerror = () => { console.error('[Home] 赵云动作帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/zhaoyun_anim/赵云_${suffix}.png`)
+      getLocalAssetPath(`assets/zhaoyun_anim/赵云_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -538,7 +538,7 @@ export class HomeScene extends Scene {
         console.error('[Home] 关羽动作帧加载失败:', key, suffix)
         this.gyImgs[key] = this.heroImgs.guanyu || null
       }
-      img.src = assetUrl(`assets/guanyu_anim/gy_${suffix}.png`)
+      getLocalAssetPath(`assets/guanyu_anim/gy_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -554,7 +554,7 @@ export class HomeScene extends Scene {
         console.error('[Home] 张飞动作帧加载失败:', key, suffix)
         this.zfImgs[key] = this.heroImgs.zhangfei || null
       }
-      img.src = assetUrl(`assets/zhangfei_anim/zf_${suffix}.png`)
+      getLocalAssetPath(`assets/zhangfei_anim/zf_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -567,7 +567,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.zglImgs[key] = img }
       img.onerror = () => { console.error('[Home] 诸葛亮动作帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/zhugeliang_anim/zgl_${suffix}.png`)
+      getLocalAssetPath(`assets/zhugeliang_anim/zgl_${suffix}.png`).then(path => { img.src = path })
     }
   }
 
@@ -583,7 +583,7 @@ export class HomeScene extends Scene {
         console.error('[Home] 刘备动作帧加载失败:', key, suffix)
         this.lbImgs[key] = this.heroImgs.liubei || null
       }
-      img.src = assetUrl(`assets/liubei_anim/lb_${suffix}.png`)
+      getLocalAssetPath(`assets/liubei_anim/lb_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -597,7 +597,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.xbImgs[key] = img }
       img.onerror = () => { console.error('[Home] 小兵动作帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/xiaobing_anim/xb_${suffix}.png`)
+      getLocalAssetPath(`assets/xiaobing_anim/xb_${suffix}.png`).then(path => { img.src = path })
     }
   }
 
@@ -618,7 +618,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.xbwImgs[key] = img }
       img.onerror = () => { console.error('[Home] 小兵走路帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/xiaobing_walk/xbw_${suffix}.png`)
+      getLocalAssetPath(`assets/xiaobing_walk/xbw_${suffix}.png`).then(path => { img.src = path })
     }
   }
 
@@ -637,7 +637,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.dfImgs[key] = img }
       img.onerror = () => { console.error('[Home] 刀斧手动作帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/daofushou_anim/df_${suffix}.png`)
+      getLocalAssetPath(`assets/daofushou_anim/df_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -653,7 +653,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.dfwImgs[key] = img }
       img.onerror = () => { console.error('[Home] 刀斧手走路帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/daofushou_walk/dfw_${suffix}.png`)
+      getLocalAssetPath(`assets/daofushou_walk/dfw_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -669,7 +669,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.lvbuImgs[key] = img }
       img.onerror = () => { console.error('[Home] 吕布动作帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/lvbu_anim/lb_${suffix}.png`)
+      getLocalAssetPath(`assets/lvbu_anim/lb_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -685,7 +685,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.lvbuwImgs[key] = img }
       img.onerror = () => { console.error('[Home] 吕布走路帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/lvbu_walk/lbw_${suffix}.png`)
+      getLocalAssetPath(`assets/lvbu_walk/lbw_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -701,7 +701,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.gjsImgs[key] = img }
       img.onerror = () => { console.error('[Home] 弓箭手动作帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/gongjianshou_anim/gjs_${suffix}.png`)
+      getLocalAssetPath(`assets/gongjianshou_anim/gjs_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -717,7 +717,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.gjswImgs[key] = img }
       img.onerror = () => { console.error('[Home] 弓箭手走路帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/gongjianshou_walk/gjsw_${suffix}.png`)
+      getLocalAssetPath(`assets/gongjianshou_walk/gjsw_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -733,7 +733,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.zjImgs[key] = img }
       img.onerror = () => { console.error('[Home] 张角动作帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/zhangjiao_anim/zj_${suffix}.png`)
+      getLocalAssetPath(`assets/zhangjiao_anim/zj_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -749,7 +749,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.zjwImgs[key] = img }
       img.onerror = () => { console.error('[Home] 张角走路帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/zhangjiao_walk/zjw_${suffix}.png`)
+      getLocalAssetPath(`assets/zhangjiao_walk/zjw_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -765,7 +765,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.dzImgs[key] = img }
       img.onerror = () => { console.error('[Home] 董卓动作帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/dongzhuo_anim/dz_${suffix}.png`)
+      getLocalAssetPath(`assets/dongzhuo_anim/dz_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -781,7 +781,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.dzwImgs[key] = img }
       img.onerror = () => { console.error('[Home] 董卓走路帧加载失败:', key, suffix) }
-      img.src = assetUrl(`assets/dongzhuo_walk/dzw_${suffix}.png`)
+      getLocalAssetPath(`assets/dongzhuo_walk/dzw_${suffix}.png`).then(path => { img.src = path })
     })
   }
 
@@ -3159,8 +3159,28 @@ export class HomeScene extends Scene {
       if (this._dragHoverR !== -1) {
         const target = this.deployed.find(e => e !== entry && e.r === this._dragHoverR && e.c === this._dragHoverC)
         if (target) {
-          // 占用格：仅同 heroId 且同部署 level 时合成；其他情况保持原位回弹。
-          this._dragFuse(entry, target)
+          if (!this._dragFuse(entry, target)) {
+            // 不同武将或不同等级：交换位置，实例属性保持不变。
+            const tmpR = entry.r
+            const tmpC = entry.c
+            entry.r = target.r
+            entry.c = target.c
+            target.r = tmpR
+            target.c = tmpC
+
+            for (const swapped of [entry, target]) {
+              const rect = this._cellRect(swapped.r, swapped.c)
+              this.fx.push({
+                x: rect.x + rect.w / 2,
+                y: rect.y + rect.h / 2,
+                t: 0,
+                dur: 0.4,
+                kind: 'fusion',
+                text: '交换',
+                color: '#7fd0ff'
+              })
+            }
+          }
         } else if (this._dragHoverValid) {
           // 空格：沿用原移动逻辑，hp/maxHp/level 等属性原样保留。
           entry.r = this._dragHoverR
