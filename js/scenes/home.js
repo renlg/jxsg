@@ -111,6 +111,7 @@ const MONSTER_SPAWN_INTERVAL_STEP = 0.22
 const MONSTER_SPAWN_INTERVAL_MIN = 0.6
 const DEBUG_MONSTER_DAMAGE = 1
 const DEBUG_HALF_HP = true
+const DEBUG_HERO_DAMAGE_MULT = 50
 
 // 根据剩余血量百分比返回血条填充色：>70% 默认绿色，<=70% 黄色，<=30% 红色
 function hpBarColor(hp, maxHp) {
@@ -349,13 +350,20 @@ export class HomeScene extends Scene {
   }
 
   // 指定卡牌/实例等级下的实际属性：伤害每级 +50%，最大生命每级 +15%。
+  _heroDamage(heroId, level = 1) {
+    const base = HERO_STATS[heroId]
+    let damage = Math.round(base.damage * (1 + HERO_DAMAGE_LEVEL_BONUS * (level - 1)))
+    if (DEBUG_HERO_DAMAGE_MULT > 1) damage = Math.round(damage * DEBUG_HERO_DAMAGE_MULT)
+    return damage
+  }
+
   _heroEffectiveStats(heroId, level = 1) {
     const base = HERO_STATS[heroId]
     let maxHp = Math.round(base.maxHp * (1 + HERO_HP_LEVEL_BONUS * (level - 1)))
     if (DEBUG_HALF_HP) maxHp = Math.round(maxHp / 2)
     return {
       maxHp,
-      damage: Math.round(base.damage * (1 + HERO_DAMAGE_LEVEL_BONUS * (level - 1)))
+      damage: this._heroDamage(heroId, level)
     }
   }
 
@@ -2957,7 +2965,7 @@ export class HomeScene extends Scene {
         const heroId = card.heroId
         const baseStats = HERO_STATS[heroId]
         const maxHp = Math.round(baseStats.maxHp * (1 + HERO_HP_LEVEL_BONUS * (card.level - 1)))
-        const damage = Math.round(baseStats.damage * (1 + HERO_DAMAGE_LEVEL_BONUS * (card.level - 1)))
+        const damage = this._heroDamage(heroId, card.level)
         const entry = { heroId, r, c, hp: maxHp, maxHp, damage, hurtT: 0, attackAnimT: null }
         entry.level = card.level
         this.deployed.push(entry)
@@ -3068,7 +3076,7 @@ export class HomeScene extends Scene {
           const heroId = card.heroId
           const baseStats = HERO_STATS[heroId]
           const maxHp = Math.round(baseStats.maxHp * (1 + HERO_HP_LEVEL_BONUS * (card.level - 1)))
-          const damage = Math.round(baseStats.damage * (1 + HERO_DAMAGE_LEVEL_BONUS * (card.level - 1)))
+          const damage = this._heroDamage(heroId, card.level)
           const entry = { heroId, r: this._dragHoverR, c: this._dragHoverC, hp: maxHp, maxHp, damage, hurtT: 0, attackAnimT: null }
           entry.level = card.level
           this.deployed.push(entry)
