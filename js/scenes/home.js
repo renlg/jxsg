@@ -945,7 +945,7 @@ export class HomeScene extends Scene {
   _monsterInHeroRange(m) {
     if (m.type === 'zhangjiao') return this._zhangjiaoAoeTargets(m).length > 0
     if (m.type === 'dongzhuo') return this._bossColumnTargets(m, 1).length > 0
-    if (m.type === 'lvbu') return this._bossColumnTargets(m, 2).length > 0
+    if (m.type === 'lvbu') return this._bossColumnTargets(m, 1).length > 0
     const range = m.type === 'gongjian' ? RANGED_RANGE_CELLS : MONSTER_RANGE_CELLS
     return this.deployed.some(entry => {
       if (entry.dying) return false
@@ -1048,7 +1048,7 @@ export class HomeScene extends Scene {
       return
     }
     if (m.type === 'dongzhuo' || m.type === 'lvbu') {
-      const range = m.type === 'dongzhuo' ? 1 : 2
+      const range = 1
       const targets = this._bossColumnTargets(m, range)
       if (targets.length === 0) return
       m.lastAttackT = this.animT
