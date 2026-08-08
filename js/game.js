@@ -7,8 +7,11 @@ export class Game {
     const info = tt.getSystemInfoSync()
     this.width = info.windowWidth
     this.height = info.windowHeight
-    this.canvas.width = this.width
-    this.canvas.height = this.height
+    const dpr = info.pixelRatio || 1
+    this.canvas.width = Math.round(this.width * dpr)
+    this.canvas.height = Math.round(this.height * dpr)
+    this.ctx.scale(dpr, dpr)
+    this.dpr = dpr
 
     this.scenes = {}
     this.current = null
