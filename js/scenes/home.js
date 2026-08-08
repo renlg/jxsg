@@ -277,10 +277,11 @@ export class HomeScene extends Scene {
     this.pull = null
     this.cardRects = []
 
-    // 拖拽状态：按住已部署武将可拖到其他空格子，hp/level 等属性全程不变，仅更新 r/c
+    // 拖拽状态：手牌可拖到空格部署；已部署武将可拖到其他格子，hp/level 等属性全程不变
     this._touchStart = null
     this._dragging = false
     this._dragEntry = null
+    this._dragCard = null
     this._dragX = 0
     this._dragY = 0
     this._dragHoverR = -1
@@ -307,6 +308,7 @@ export class HomeScene extends Scene {
   }
 
   leave() {
+    this._resetDragState()
     stopBattleBg()
   }
 
@@ -793,6 +795,7 @@ export class HomeScene extends Scene {
 
   // 刷新按钮抽卡：费用增量依次为 10、20、30、40，之后每次增加 50 金币；余额足够才重新随机并逐张翻牌。
   startRefreshPull() {
+    this._resetDragState()
     if (this.pull) return
     const cost = this._refreshCost(this.refreshCount)
     if (this.battleGold < cost) {
@@ -2925,14 +2928,7 @@ export class HomeScene extends Scene {
     for (let i = 0; i < this.cardRects.length; i++) {
       const rect = this.cardRects[i]
       if (this._hitRect(rect, x, y)) {
-        const heroId = rect.id
-        if (this.selectedCardIndex === rect.index) {
-          this.selectedCardIndex = null
-          this.selectedHero = null
-        } else {
-          this.selectedCardIndex = rect.index
-          this.selectedHero = heroId
-        }
+        this._touchStart = { type: 'card', index: rect.index, heroId: rect.id, x, y }
         return
       }
     }
@@ -2983,6 +2979,16 @@ export class HomeScene extends Scene {
     return !this.deployed.some(e => e !== this._dragEntry && e.r === r && e.c === c)
   }
 
+  _resetDragState() {
+    this._touchStart = null
+    this._dragging = false
+    this._dragEntry = null
+    this._dragCard = null
+    this._dragHoverR = -1
+    this._dragHoverC = -1
+    this._dragHoverValid = false
+  }
+
   // 格子拖拽合成：仅同武将、同部署等级可合成；合成升级只对本次战斗中的目标实例生效。
   _dragFuse(source, target) {
     if (!source || !target || source.heroId !== target.heroId || source.level !== target.level) return false
@@ -3026,7 +3032,12 @@ export class HomeScene extends Scene {
       const dy = y - this._touchStart.y
       if (Math.hypot(dx, dy) < DRAG_MOVE_THRESHOLD) return
       this._dragging = true
-      this._dragEntry = this._touchStart.entry
+      if (this._touchStart.type === 'card') {
+        this._dragCard = { index: this._touchStart.index, heroId: this._touchStart.heroId }
+        this._dragEntry = null
+      } else {
+        this._dragEntry = this._touchStart.entry
+      }
     }
 
     this._dragX = x
@@ -3048,7 +3059,34 @@ export class HomeScene extends Scene {
   onTouchEnd(x, y) {
     if (!this._touchStart) return
 
-    if (this._dragging) {
+    if (this._dragging && this._dragCard) {
+      if (this._dragHoverValid) {
+        const card = this.hand[this._dragCard.index]
+        if (card && card.heroId === this._dragCard.heroId) {
+          const heroId = card.heroId
+          const baseStats = HERO_STATS[heroId]
+          const maxHp = Math.round(baseStats.maxHp * (1 + HERO_HP_LEVEL_BONUS * (card.level - 1)))
+          const damage = Math.round(baseStats.damage * (1 + HERO_DAMAGE_LEVEL_BONUS * (card.level - 1)))
+          const entry = { heroId, r: this._dragHoverR, c: this._dragHoverC, hp: maxHp, maxHp, damage, hurtT: 0, attackAnimT: null }
+          entry.level = card.level
+          this.deployed.push(entry)
+          this.hand.splice(this._dragCard.index, 1)
+          const rect = this._cellRect(entry.r, entry.c)
+          this.fx.push({
+            x: rect.x + rect.w / 2,
+            y: rect.y + rect.h / 2,
+            t: 0,
+            dur: 0.45,
+            kind: 'fusion',
+            text: '部署!',
+            color: '#78d978'
+          })
+        }
+      }
+      // 手牌拖拽无论部署成功与否都取消当前选中状态。
+      this.selectedHero = null
+      this.selectedCardIndex = null
+    } else if (this._dragging) {
       const entry = this._dragEntry
       if (this._dragHoverR !== -1) {
         const target = this.deployed.find(e => e !== entry && e.r === this._dragHoverR && e.c === this._dragHoverC)
@@ -3062,20 +3100,24 @@ export class HomeScene extends Scene {
         }
       }
       // 否则落点无效，武将保持在原格子（不做任何改动，即"回弹"）
+    } else if (this._touchStart.type === 'card') {
+      // 未超过拖拽阈值时保留原有点击选中/取消选中行为。
+      if (this.selectedCardIndex === this._touchStart.index) {
+        this.selectedCardIndex = null
+        this.selectedHero = null
+      } else {
+        this.selectedCardIndex = this._touchStart.index
+        this.selectedHero = this._touchStart.heroId
+      }
     }
     // 未触发拖拽阈值，视为点击已部署武将：不做任何改动，武将保持部署状态
 
-    this._touchStart = null
-    this._dragging = false
-    this._dragEntry = null
-    this._dragHoverR = -1
-    this._dragHoverC = -1
-    this._dragHoverValid = false
+    this._resetDragState()
   }
 
   // 拖拽中：高亮悬停格子（绿=可放置，红=不可放置），并在手指位置绘制半透明的被拖拽武将
   _renderDragGhost(ctx) {
-    if (!this._dragging || !this._dragEntry) return
+    if (!this._dragging || (!this._dragEntry && !this._dragCard)) return
 
     if (this._dragHoverR !== -1) {
       const rect = this._cellRect(this._dragHoverR, this._dragHoverC)
@@ -3085,8 +3127,8 @@ export class HomeScene extends Scene {
       ctx.restore()
     }
 
-    const entry = this._dragEntry
-    const img = this.heroImgs[entry.heroId]
+    const heroId = this._dragCard ? this._dragCard.heroId : this._dragEntry.heroId
+    const img = this.heroImgs[heroId]
     const size = this.cell * 0.9
 
     ctx.save()
@@ -3096,8 +3138,20 @@ export class HomeScene extends Scene {
       const dw = img.width * scale
       const dh = img.height * scale
       ctx.drawImage(img, this._dragX - dw / 2, this._dragY - dh / 2 - 12, dw, dh)
+    } else if (this._dragCard) {
+      const cardW = Math.min(this.cardW, this.cell * 0.72)
+      const cardH = cardW * 1.15
+      const cardX = this._dragX - cardW / 2
+      const cardY = this._dragY - cardH / 2 - 12
+      ctx.fillStyle = '#1c1e26'
+      this._roundRect(ctx, cardX, cardY, cardW, cardH, 8)
+      ctx.fill()
+      ctx.strokeStyle = HERO_RARITY_COLOR[heroId] || '#e8c96a'
+      ctx.lineWidth = 3
+      this._roundRect(ctx, cardX, cardY, cardW, cardH, 8)
+      ctx.stroke()
     } else {
-      ctx.fillStyle = HERO_RARITY_COLOR[entry.heroId] || '#e8c96a'
+      ctx.fillStyle = HERO_RARITY_COLOR[heroId] || '#e8c96a'
       ctx.beginPath()
       ctx.arc(this._dragX, this._dragY - 12, this.cell * 0.3, 0, Math.PI * 2)
       ctx.fill()
