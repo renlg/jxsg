@@ -1898,7 +1898,7 @@ export class HomeScene extends Scene {
     const barH = 6
     const cx = rect.x + rect.w / 2
     const barX = cx - barW / 2
-    const barY = portraitTop - 7
+    const barY = portraitTop - 3
 
     ctx.fillStyle = 'rgba(0,0,0,0.55)'
     ctx.fillRect(barX, barY, barW, barH)
