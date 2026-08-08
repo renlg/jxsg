@@ -109,6 +109,7 @@ const MONSTER_ATTACK_COOLDOWN = 1.0
 const MONSTER_SPAWN_INTERVAL_BASE = 2.8
 const MONSTER_SPAWN_INTERVAL_STEP = 0.22
 const MONSTER_SPAWN_INTERVAL_MIN = 0.6
+const DEBUG_MONSTER_DAMAGE = 1
 
 // 根据剩余血量百分比返回血条填充色：>70% 默认绿色，<=70% 黄色，<=30% 红色
 function hpBarColor(hp, maxHp) {
@@ -886,6 +887,8 @@ export class HomeScene extends Scene {
       monsterDamage = 8 * monsterLevelMultiplier
       walkFrameCount = LB_WALK_FRAMES.length
     }
+
+    if (DEBUG_MONSTER_DAMAGE > 0) monsterDamage = DEBUG_MONSTER_DAMAGE
 
     this.monsters.push({
       id: this.monsterIdSeq++,

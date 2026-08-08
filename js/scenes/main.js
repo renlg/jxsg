@@ -30,6 +30,7 @@ const PULL_DONE_HOLD = 0.6
 const GACHA_TOAST_DUR = 0.8
 const LEVEL_COUNT = 15
 const LEVEL_DRAG_THRESHOLD = 8
+const DEBUG_UNLOCK_ALL = true
 
 // 主页面（大厅）：水墨山水背景 + 顶部玩家栏 + 武将陈列 + 关卡选择入口
 export class MainScene extends Scene {
@@ -855,7 +856,7 @@ export class MainScene extends Scene {
 
     const selectedLevel = this._levelAtPoint(x, y)
     if (selectedLevel === null) return
-    if (selectedLevel > this.level) {
+    if (!DEBUG_UNLOCK_ALL && selectedLevel > this.level) {
       this.fx.push({ x, y, t: 0, dur: GACHA_TOAST_DUR, text: '未解锁', color: '#d7d9df' })
       return
     }
