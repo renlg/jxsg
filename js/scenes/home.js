@@ -122,7 +122,7 @@ function hpBarColor(hp, maxHp) {
 
 const MONSTER_RANGE_CELLS = 0.8
 const RANGED_RANGE_CELLS = 2
-const ZHANGJIAO_AOE_RANGE_CELLS = 2
+const ZHANGJIAO_AOE_RANGE_CELLS = 1
 const ZHANGJIAO_AOE_MAX_TARGETS = 6
 const RANGED_ATTACK_RELEASE_POINT = 0.6
 const PROJECTILE_SPEED = 300
@@ -351,8 +351,10 @@ export class HomeScene extends Scene {
   // 指定卡牌/实例等级下的实际属性：伤害每级 +50%，最大生命每级 +15%。
   _heroEffectiveStats(heroId, level = 1) {
     const base = HERO_STATS[heroId]
+    let maxHp = Math.round(base.maxHp * (1 + HERO_HP_LEVEL_BONUS * (level - 1)))
+    if (DEBUG_HALF_HP) maxHp = Math.round(maxHp / 2)
     return {
-      maxHp: Math.round(base.maxHp * (1 + HERO_HP_LEVEL_BONUS * (level - 1))),
+      maxHp,
       damage: Math.round(base.damage * (1 + HERO_DAMAGE_LEVEL_BONUS * (level - 1)))
     }
   }
