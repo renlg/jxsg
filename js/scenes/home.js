@@ -3034,6 +3034,41 @@ export class HomeScene extends Scene {
     return true
   }
 
+  // 手牌拖拽到同武将、同等级的已部署武将时，直接消耗手牌并合成升级。
+  _fuseCardOntoHero(card, cardIndex, target) {
+    if (!card || !target || card.heroId !== target.heroId || card.level !== target.level) return false
+
+    const heroId = card.heroId
+    const baseStats = HERO_STATS[heroId]
+    const cardMaxHp = Math.round(baseStats.maxHp * (1 + HERO_HP_LEVEL_BONUS * (card.level - 1)))
+    const cardDamage = this._heroDamage(heroId, card.level)
+    const newMaxHp = Math.round((cardMaxHp + target.maxHp) * 0.8)
+    const newDamage = Math.round((cardDamage + target.damage) * 0.8)
+    this.hand.splice(cardIndex, 1)
+    target.maxHp = newMaxHp
+    target.damage = newDamage
+    target.hp = newMaxHp
+    target.level += 1
+    if (!Number.isFinite(target.attackAnimT)) {
+      const targetKey = `${target.heroId}_${target.r}_${target.c}`
+      const last = this.lastAtkT[targetKey]
+      target.attackAnimT = Number.isFinite(last) ? last : null
+    }
+
+    const rect = this._cellRect(target.r, target.c)
+    this.fx.push({
+      x: rect.x + rect.w / 2,
+      y: rect.y + rect.h / 2,
+      t: 0,
+      dur: 1,
+      kind: 'fusion',
+      text: `${HERO_CN_NAME[heroId]} 升级! Lv.${target.level}`,
+      color: HERO_RARITY_COLOR[heroId] || '#ffd76a'
+    })
+    this._saveProgress()
+    return true
+  }
+
   onTouchMove(x, y) {
     if (!this._touchStart) return
 
@@ -3058,7 +3093,15 @@ export class HomeScene extends Scene {
       const r = Math.floor((y - this.lawnY) / this.cell)
       this._dragHoverR = r
       this._dragHoverC = c
-      this._dragHoverValid = this._dragCellValid(r, c)
+      if (this._dragCard) {
+        const card = this.hand[this._dragCard.index]
+        const target = this.deployed.find(e => e.r === r && e.c === c)
+        this._dragHoverValid = r >= 0 && r < this.rows && c >= 0 && c < this.cols &&
+          !!card && card.heroId === this._dragCard.heroId &&
+          (!target || (target.heroId === card.heroId && target.level === card.level))
+      } else {
+        this._dragHoverValid = this._dragCellValid(r, c)
+      }
     } else {
       this._dragHoverR = -1
       this._dragHoverC = -1
@@ -3074,23 +3117,28 @@ export class HomeScene extends Scene {
         const card = this.hand[this._dragCard.index]
         if (card && card.heroId === this._dragCard.heroId) {
           const heroId = card.heroId
-          const baseStats = HERO_STATS[heroId]
-          const maxHp = Math.round(baseStats.maxHp * (1 + HERO_HP_LEVEL_BONUS * (card.level - 1)))
-          const damage = this._heroDamage(heroId, card.level)
-          const entry = { heroId, r: this._dragHoverR, c: this._dragHoverC, hp: maxHp, maxHp, damage, hurtT: 0, attackAnimT: null }
-          entry.level = card.level
-          this.deployed.push(entry)
-          this.hand.splice(this._dragCard.index, 1)
-          const rect = this._cellRect(entry.r, entry.c)
-          this.fx.push({
-            x: rect.x + rect.w / 2,
-            y: rect.y + rect.h / 2,
-            t: 0,
-            dur: 0.45,
-            kind: 'fusion',
-            text: '部署!',
-            color: '#78d978'
-          })
+          const target = this.deployed.find(e => e.r === this._dragHoverR && e.c === this._dragHoverC)
+          if (target) {
+            this._fuseCardOntoHero(card, this._dragCard.index, target)
+          } else {
+            const baseStats = HERO_STATS[heroId]
+            const maxHp = Math.round(baseStats.maxHp * (1 + HERO_HP_LEVEL_BONUS * (card.level - 1)))
+            const damage = this._heroDamage(heroId, card.level)
+            const entry = { heroId, r: this._dragHoverR, c: this._dragHoverC, hp: maxHp, maxHp, damage, hurtT: 0, attackAnimT: null }
+            entry.level = card.level
+            this.deployed.push(entry)
+            this.hand.splice(this._dragCard.index, 1)
+            const rect = this._cellRect(entry.r, entry.c)
+            this.fx.push({
+              x: rect.x + rect.w / 2,
+              y: rect.y + rect.h / 2,
+              t: 0,
+              dur: 0.45,
+              kind: 'fusion',
+              text: '部署!',
+              color: '#78d978'
+            })
+          }
         }
       }
       // 手牌拖拽无论部署成功与否都取消当前选中状态。
