@@ -121,6 +121,8 @@ function hpBarColor(hp, maxHp) {
 
 const MONSTER_RANGE_CELLS = 0.8
 const RANGED_RANGE_CELLS = 2
+const ZHANGJIAO_AOE_RANGE_CELLS = 2
+const ZHANGJIAO_AOE_MAX_TARGETS = 6
 const RANGED_ATTACK_RELEASE_POINT = 0.6
 const PROJECTILE_SPEED = 300
 const PROJECTILE_HIT_DIST = 14
@@ -926,6 +928,7 @@ export class HomeScene extends Scene {
 
   // 判断怪物当前位置是否进入对已部署武将的停止/攻击范围（同行直线距离，PVZ 式）
   _monsterInHeroRange(m) {
+    if (m.type === 'zhangjiao') return this._zhangjiaoAoeTargets(m).length > 0
     const range = m.type === 'gongjian' ? RANGED_RANGE_CELLS : MONSTER_RANGE_CELLS
     return this.deployed.some(entry => {
       if (entry.dying) return false
@@ -1012,6 +1015,21 @@ export class HomeScene extends Scene {
 
   // 近战怪物在动作播完时结算挥击；弓箭手则在动作约 60% 处放箭，伤害延后至箭矢命中。
   _monsterAttackHero(m) {
+    if (m.type === 'zhangjiao') {
+      const targets = this._zhangjiaoAoeTargets(m)
+      if (targets.length === 0) return
+      m.lastAttackT = this.animT
+      this.pendingHits.push({
+        t: 0,
+        hitAt: this._monsterAttackPlayDur(m),
+        kind: 'zhangjiaoLightning',
+        monster: m,
+        targets,
+        dmg: m.damage,
+        resolved: false
+      })
+      return
+    }
     const target = this._monsterDamageTarget(m)
     if (!target) return
     m.lastAttackT = this.animT
@@ -1025,6 +1043,19 @@ export class HomeScene extends Scene {
       dmg: m.damage,
       resolved: false
     })
+  }
+
+  // 张角雷击覆盖自身前后相邻行、水平 2 格内的所有武将，并优先命中距离最近的 6 人。
+  _zhangjiaoAoeTargets(m) {
+    return this.deployed
+      .filter(entry => !entry.dying && Math.abs(entry.r - m.r) <= 1)
+      .map(entry => {
+        return { entry, dist: this._cellDistToMonster(entry, m, false) }
+      })
+      .filter(candidate => candidate.dist <= ZHANGJIAO_AOE_RANGE_CELLS)
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, ZHANGJIAO_AOE_MAX_TARGETS)
+      .map(candidate => candidate.entry)
   }
 
   // 选取怪物停止范围内同行且距离最近的武将作为受击目标；治疗单位刘备也必须可被攻击。
@@ -1138,7 +1169,7 @@ export class HomeScene extends Scene {
     this.pendingHits.forEach(hit => {
       if (hit.resolved) return
       // 怪物被眩晕期间，其挥击命中判定也一并冻结（与动画帧冻结保持一致），眩晕结束后从冻结处继续计时
-      if ((hit.kind === 'monsterMelee' || hit.kind === 'monsterRangedCast') && hit.monster.stunT > 0) return
+      if ((hit.kind === 'monsterMelee' || hit.kind === 'monsterRangedCast' || hit.kind === 'zhangjiaoLightning') && hit.monster.stunT > 0) return
       hit.t += dt
       if (hit.t >= hit.hitAt) {
         hit.resolved = true
@@ -1148,6 +1179,8 @@ export class HomeScene extends Scene {
           this._resolveMonsterMeleeHit(hit)
         } else if (hit.kind === 'monsterRangedCast') {
           this._resolveMonsterRangedCast(hit)
+        } else if (hit.kind === 'zhangjiaoLightning') {
+          this._resolveZhangjiaoLightningHit(hit)
         } else if (hit.kind === 'zhugeliangCast') {
           this._resolveZhugeliangCast(hit)
         } else if (hit.kind === 'heroHeal') {
@@ -1211,6 +1244,29 @@ export class HomeScene extends Scene {
     if (target.hp <= 0) {
       this._killHero(target)
     }
+  }
+
+  // 张角雷击命中：一次结算起手时锁定的所有仍在场目标，音效只播放一次。
+  _resolveZhangjiaoLightningHit(hit) {
+    let hitAny = false
+    hit.targets.forEach(target => {
+      if (!target || target.dying || this.deployed.indexOf(target) === -1) return
+      target.hp -= hit.dmg
+      target.hurtT = 0.25
+      hitAny = true
+      const rect = this._cellRect(target.r, target.c)
+      this.fx.push({
+        x: rect.x + rect.w / 2,
+        y: rect.y + rect.h * 0.5,
+        t: 0,
+        dur: 0.3,
+        kind: 'lightning',
+        seed: Math.random()
+      })
+      this.fx.push({ x: rect.x + rect.w / 2, y: rect.y + rect.h * 0.3, t: 0, dur: DMG_TEXT_DUR, kind: 'dmg', text: `-${hit.dmg}` })
+      if (target.hp <= 0) this._killHero(target)
+    })
+    if (hitAny) playHit()
   }
 
   // 弓箭手放箭时再次确认双方仍存活且目标仍在同一行射程内；失去目标时本次射击落空。
@@ -1576,8 +1632,8 @@ export class HomeScene extends Scene {
   // 只有当怪物与武将处于同一行时才计算水平格子距离，否则视为不可达（返回 Infinity），
   // 攻击永远不会跨行命中。距离按连续像素换算为格数（而非取整列号之差），
   // 这样 0.5/0.7 这类小于 1 格的射程才能真正生效
-  _cellDistToMonster(entry, m) {
-    if (m.r !== entry.r) return Infinity
+  _cellDistToMonster(entry, m, sameRowOnly = true) {
+    if (sameRowOnly && m.r !== entry.r) return Infinity
     const heroCenterX = this.lawnX + entry.c * this.cell + this.cell / 2
     return Math.abs(m.x - heroCenterX) / this.cell
   }
@@ -2223,6 +2279,43 @@ export class HomeScene extends Scene {
         ctx.beginPath()
         ctx.arc(f.x, f.y, this.cell * 0.3, -Math.PI * 0.3, Math.PI * 0.3)
         ctx.stroke()
+        ctx.restore()
+      } else if (f.kind === 'lightning') {
+        const points = []
+        let seed = Math.floor(f.seed * 0x7fffffff) || 1
+        const random = () => {
+          seed = (seed * 48271) % 0x7fffffff
+          return seed / 0x7fffffff
+        }
+        const pointCount = 5 + Math.floor(random() * 3)
+        for (let i = 0; i < pointCount; i++) {
+          points.push({
+            x: f.x + (i === 0 || i === pointCount - 1 ? 0 : (random() * 2 - 1) * this.cell * 0.15),
+            y: f.y - this.cell * 1.2 + (this.cell * 1.2 * i) / (pointCount - 1)
+          })
+        }
+        const drawBolt = () => {
+          ctx.beginPath()
+          ctx.moveTo(points[0].x, points[0].y)
+          for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y)
+          ctx.stroke()
+        }
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.lineJoin = 'round'
+        ctx.lineCap = 'round'
+        ctx.strokeStyle = '#4fc3f7'
+        ctx.lineWidth = 3
+        ctx.shadowColor = '#4fc3f7'
+        ctx.shadowBlur = this.cell * 0.18
+        drawBolt()
+        ctx.shadowBlur = 0
+        ctx.strokeStyle = '#aef3ff'
+        ctx.lineWidth = 2.5
+        drawBolt()
+        ctx.strokeStyle = '#e8fbff'
+        ctx.lineWidth = 2
+        drawBolt()
         ctx.restore()
       } else if (f.kind === 'coinFly') {
         const coinProgress = Math.min(1, progress)
