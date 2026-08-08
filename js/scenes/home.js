@@ -781,10 +781,17 @@ export class HomeScene extends Scene {
     this.selectedCardIndex = null
   }
 
-  // 刷新按钮抽卡：第 N 次刷新扣除 30 * 2^N 金币，余额足够才重新随机并逐张翻牌。
+  _refreshCost(n) {
+    const ramp = Math.min(n, 4)
+    let cost = REFRESH_COST_BASE + 10 * ramp * (ramp + 1) / 2
+    if (n > 4) cost += (n - 4) * 50
+    return cost
+  }
+
+  // 刷新按钮抽卡：费用增量依次为 10、20、30、40，之后每次增加 50 金币；余额足够才重新随机并逐张翻牌。
   startRefreshPull() {
     if (this.pull) return
-    const cost = REFRESH_COST_BASE * Math.pow(2, this.refreshCount)
+    const cost = this._refreshCost(this.refreshCount)
     if (this.battleGold < cost) {
       const x = this.refreshBtn.x + this.refreshBtn.w / 2
       const y = this.refreshBtn.y
@@ -2566,7 +2573,7 @@ export class HomeScene extends Scene {
     const cx = x + w / 2
     const cy = y + h / 2
     const r = Math.min(w, h) / 2
-    const nextCost = REFRESH_COST_BASE * Math.pow(2, this.refreshCount)
+    const nextCost = this._refreshCost(this.refreshCount)
 
     // 外层柔和阴影/光晕
     ctx.fillStyle = 'rgba(0,0,0,0.35)'
