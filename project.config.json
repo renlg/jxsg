@@ -9,7 +9,7 @@
         "compileHotReLoad": true,
         "nativeCompile": true
     },
-    "appid": "tt5dfd2b40c39801bd02",
+    "appid": "tt6c721acff217307301",
     "projectname": "jxsg",
     "douyinProjectType": "native",
     "cloudfunctionRoot": "cloudfunctions/"

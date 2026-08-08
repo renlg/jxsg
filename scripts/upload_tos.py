@@ -10,7 +10,7 @@
 
 参数:
   清单文件默认 /tmp/jxsg_assets_used.txt（每行一个相对项目根的路径，如 assets/hero/liubei.png）
-  TOS_BUCKET = 抖音云环境 ID（桶名=环境ID），jxsg 为 tt5dfd2b40c39801bd02-env-igrgycscux
+  TOS_BUCKET = 抖音云环境 ID（桶名=环境ID），jxsg 为 tt6c721acff217307301-env-zx1ots0q58
 
 特点: 8 线程并发 / 每文件失败重试 3 次 / 进度+汇总
 """
