@@ -1,4 +1,5 @@
 import { Scene } from './scene.js'
+import { playAttack, playBattleBg, playHit, stopBattleBg, stopMainBg } from '../audio.js'
 
 const HERO_NAMES = ['guanyu', 'liubei', 'zhangfei', 'zhaoyun', 'zhugeliang']
 
@@ -155,6 +156,9 @@ export class HomeScene extends Scene {
     const w = this.game.width
     const h = this.game.height
 
+    stopMainBg()
+    playBattleBg()
+
     this.rows = 3
     this.cols = 8
     this.lawnWidthRatio = 0.70
@@ -290,7 +294,9 @@ export class HomeScene extends Scene {
     this.returnBtnRect = null
   }
 
-  leave() {}
+  leave() {
+    stopBattleBg()
+  }
 
   // 跨场景共享存档：主页面金币仅保留，战斗页只读写武将等级/碎片和解锁关卡；战斗金币不入存档。
   // 读档失败或首次进入时回退到默认值（含测试初始金币 9999999）
@@ -1005,6 +1011,7 @@ export class HomeScene extends Scene {
       if (!target) return
       this.lastAtkT[key] = now
       entry.attackAnimT = now
+      playAttack()
 
       if (entry.heroId === 'zhugeliang') {
         // 法球不在起手瞬间生成，也不在动作播到一半的命中点生成，而是等整段施法动画
@@ -1140,6 +1147,7 @@ export class HomeScene extends Scene {
     const target = hit.target
     if (!target || target.dying || this.deployed.indexOf(target) === -1) return
     target.hp -= hit.dmg
+    playHit()
     target.hurtT = 0.25
     const rect = this._cellRect(target.r, target.c)
     this.fx.push({ x: rect.x + rect.w / 2, y: rect.y + rect.h * 0.5, t: 0, dur: 0.25, kind: 'slash', color: '#ff4d4d' })
@@ -1254,6 +1262,7 @@ export class HomeScene extends Scene {
     p.angle = Math.atan2(dy, dx)
     if (dist < PROJECTILE_HIT_DIST) {
       target.hp -= p.dmg
+      playHit()
       target.hurtT = 0.25
       this.fx.push({ x: targetX, y: targetY - this.cell * 0.2, t: 0, dur: DMG_TEXT_DUR, kind: 'dmg', text: `-${p.dmg}` })
       this.fx.push({ x: targetX, y: targetY, t: 0, dur: 0.2, kind: 'slash', color: '#d8b06a' })

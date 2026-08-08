@@ -1,11 +1,12 @@
-// 音频管理：背景音乐（主城/战斗）与受击音效的创建、播放与销毁
+// 音频管理：背景音乐（主城/战斗）与攻击/受击音效的创建、播放与销毁
 import { isSoundOn, isMusicOn } from './data.js'
 
 let mainBgCtx = null
 let battleBgCtx = null
 let hitCtx = null
-let lastHitTime = 0
-const HIT_MIN_INTERVAL = 50 // 毫秒：同一帧多次受击时，最多每 50ms 播放一次音效，避免刷屏叠音
+let attackCtx = null
+const lastSfxTime = { hit: 0, attack: 0 }
+const SFX_MIN_INTERVAL = 50 // 毫秒：同类音效最多每 50ms 播放一次，避免同帧刷屏叠音
 
 function createLoopMusic(src) {
   const ctx = tt.createInnerAudioContext()
@@ -22,6 +23,7 @@ function stopAndDestroy(ctx) {
 
 // ---- 主城背景音乐 ----
 export function playMainBg() {
+  stopBattleBg()
   if (!isMusicOn()) return
   if (mainBgCtx) return // 已在播放，避免重复创建
   mainBgCtx = createLoopMusic('assets/sound/main_bg.mp3')
@@ -35,6 +37,7 @@ export function stopMainBg() {
 
 // ---- 战斗背景音乐 ----
 export function playBattleBg() {
+  stopMainBg()
   if (!isMusicOn()) return
   if (battleBgCtx) return
   battleBgCtx = createLoopMusic('assets/sound/battle_bg.mp3')
@@ -46,15 +49,24 @@ export function stopBattleBg() {
   battleBgCtx = null
 }
 
-// ---- 受击音效 ----
-export function playHit() {
+// ---- 攻击/受击音效 ----
+function playSfx(kind, src, currentCtx) {
   if (!isSoundOn()) return
   const now = Date.now()
-  if (now - lastHitTime < HIT_MIN_INTERVAL) return
-  lastHitTime = now
+  if (now - lastSfxTime[kind] < SFX_MIN_INTERVAL) return
+  lastSfxTime[kind] = now
   // 每次播放重新创建音频上下文，避免上一次播放未结束时被打断/重叠
-  stopAndDestroy(hitCtx)
-  hitCtx = tt.createInnerAudioContext()
-  hitCtx.src = 'assets/sound/hit.mp3'
-  hitCtx.play()
+  stopAndDestroy(currentCtx)
+  const ctx = tt.createInnerAudioContext()
+  ctx.src = src
+  ctx.play()
+  return ctx
+}
+
+export function playAttack() {
+  attackCtx = playSfx('attack', 'assets/sound/attack.mp3', attackCtx) || attackCtx
+}
+
+export function playHit() {
+  hitCtx = playSfx('hit', 'assets/sound/hit.mp3', hitCtx) || hitCtx
 }

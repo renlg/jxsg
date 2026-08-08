@@ -1,4 +1,6 @@
 import { Scene } from './scene.js'
+import { isMusicOn, isSoundOn, toggleMusic, toggleSound } from '../data.js'
+import { playMainBg, stopBattleBg, stopMainBg } from '../audio.js'
 
 const HERO_NAMES = ['guanyu', 'liubei', 'zhangfei', 'zhaoyun', 'zhugeliang']
 
@@ -47,8 +49,16 @@ export class MainScene extends Scene {
     this.topBarH = Math.max(66, Math.min(82, Math.round(h * 0.14)))
     this.avatarSize = Math.max(42, Math.min(54, this.topBarH - 22))
     this.avatarImg = null
+    this.settingsOpen = false
+    this.settingsPanelRect = null
+    this.settingsMusicRect = null
+    this.settingsSoundRect = null
+    this.settingsCloseRect = null
     this.playerNickname = '主公'
     this._loadAvatar()
+
+    stopBattleBg()
+    playMainBg()
 
     // 金币/武将等级/武将碎片为跨场景共享存档，读档失败/首次进入则使用默认值（含测试初始金币）
     this._loadProgress()
@@ -70,7 +80,9 @@ export class MainScene extends Scene {
     this.particles = this._createParticles(w, h)
   }
 
-  leave() {}
+  leave() {
+    stopMainBg()
+  }
 
   _layoutLobby(w, h) {
     const rowTop = this.topBarH + Math.max(16, Math.round(h * 0.035))
@@ -233,6 +245,90 @@ export class MainScene extends Scene {
     this._renderLevelSelector(ctx)
     this._renderFx(ctx)
     this._renderPullEffect(ctx)
+    if (this.settingsOpen) this._renderSettingsPanel(ctx)
+  }
+
+  _renderSettingsPanel(ctx) {
+    const w = this.game.width
+    const h = this.game.height
+    const panelW = Math.min(330, w - 48)
+    const panelH = Math.min(260, h - 64)
+    const panelX = (w - panelW) / 2
+    const panelY = (h - panelH) / 2
+    const rowH = Math.min(66, (panelH - 78) / 2)
+    const rowX = panelX + 20
+    const rowW = panelW - 40
+    const firstRowY = panelY + 62
+
+    this.settingsPanelRect = { x: panelX, y: panelY, w: panelW, h: panelH }
+    this.settingsMusicRect = { x: rowX, y: firstRowY, w: rowW, h: rowH }
+    this.settingsSoundRect = { x: rowX, y: firstRowY + rowH + 12, w: rowW, h: rowH }
+    this.settingsCloseRect = { x: panelX + panelW - 46, y: panelY + 12, w: 32, h: 32 }
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(2,3,6,0.72)'
+    ctx.fillRect(0, 0, w, h)
+
+    ctx.shadowColor = 'rgba(0,0,0,0.65)'
+    ctx.shadowBlur = 22
+    this._roundRect(ctx, panelX, panelY, panelW, panelH, 16)
+    ctx.fillStyle = '#171a22'
+    ctx.fill()
+    ctx.shadowBlur = 0
+    ctx.strokeStyle = '#b8872b'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    ctx.fillStyle = '#f1d486'
+    ctx.font = 'bold 24px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('设置', w / 2, panelY + 34)
+
+    this._renderSettingRow(ctx, this.settingsMusicRect, '音乐', isMusicOn())
+    this._renderSettingRow(ctx, this.settingsSoundRect, '音效', isSoundOn())
+
+    const close = this.settingsCloseRect
+    ctx.strokeStyle = '#d8bd78'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(close.x + 9, close.y + 9)
+    ctx.lineTo(close.x + close.w - 9, close.y + close.h - 9)
+    ctx.moveTo(close.x + close.w - 9, close.y + 9)
+    ctx.lineTo(close.x + 9, close.y + close.h - 9)
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  _renderSettingRow(ctx, rect, label, enabled) {
+    this._roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 10)
+    ctx.fillStyle = 'rgba(255,255,255,0.045)'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(205,166,72,0.28)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+
+    ctx.fillStyle = '#f4e4b7'
+    ctx.font = 'bold 18px sans-serif'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(label, rect.x + 18, rect.y + rect.h / 2)
+
+    const toggleW = 62
+    const toggleH = 30
+    const toggleX = rect.x + rect.w - toggleW - 14
+    const toggleY = rect.y + (rect.h - toggleH) / 2
+    this._roundRect(ctx, toggleX, toggleY, toggleW, toggleH, toggleH / 2)
+    ctx.fillStyle = enabled ? '#b8872b' : '#454852'
+    ctx.fill()
+    ctx.fillStyle = '#fff7dc'
+    ctx.beginPath()
+    ctx.arc(toggleX + (enabled ? toggleW - toggleH / 2 : toggleH / 2), toggleY + toggleH / 2, toggleH / 2 - 3, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = enabled ? '#f6d77e' : '#b8bbc4'
+    ctx.font = 'bold 10px sans-serif'
+    ctx.textAlign = 'right'
+    ctx.fillText(enabled ? 'ON' : 'OFF', toggleX - 8, toggleY + toggleH / 2)
   }
 
   _renderBackdrop(ctx) {
@@ -697,6 +793,31 @@ export class MainScene extends Scene {
   }
 
   onTouch(x, y) {
+    if (this.settingsOpen) {
+      if (this.settingsCloseRect && this.hitRect(x, y, this.settingsCloseRect.x, this.settingsCloseRect.y, this.settingsCloseRect.w, this.settingsCloseRect.h)) {
+        this.settingsOpen = false
+      } else if (this.settingsMusicRect && this.hitRect(x, y, this.settingsMusicRect.x, this.settingsMusicRect.y, this.settingsMusicRect.w, this.settingsMusicRect.h)) {
+        if (toggleMusic()) playMainBg()
+        else {
+          stopMainBg()
+          stopBattleBg()
+        }
+      } else if (this.settingsSoundRect && this.hitRect(x, y, this.settingsSoundRect.x, this.settingsSoundRect.y, this.settingsSoundRect.w, this.settingsSoundRect.h)) {
+        toggleSound()
+      } else if (!this.settingsPanelRect || !this.hitRect(x, y, this.settingsPanelRect.x, this.settingsPanelRect.y, this.settingsPanelRect.w, this.settingsPanelRect.h)) {
+        this.settingsOpen = false
+      }
+      return
+    }
+
+    const avatarCx = this.leftPad + this.avatarSize / 2
+    const avatarCy = this.topBarY + this.topBarH / 2
+    if (Math.hypot(x - avatarCx, y - avatarCy) <= this.avatarSize / 2 + 5) {
+      this.levelTouch = null
+      this.settingsOpen = true
+      return
+    }
+
     if (this.pull) return
     if (this.hitRect(x, y, this.levelViewport.x, this.levelViewport.y, this.levelViewport.w, this.levelViewport.h)) {
       this.levelTouch = { startX: x, startY: y, startOffset: this.scrollOffset, moved: false }
