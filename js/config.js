@@ -4,7 +4,7 @@
 export const REMOTE_ASSETS = true
 
 // 抖音云 TOS 对象存储基础地址（已验证 assets/... 路径均可直接拼接访问）
-export const REMOTE_BASE = 'https://tt6c721acff217307301-env-zx1ots0q58.tos-cn-beijing.volces.com/'
+export const REMOTE_BASE = 'https://tt5dfd2b40c39801bd02-env-igrgycscux.tos-cn-beijing.volces.com/'
 
 // 统一资源路径解析：REMOTE_ASSETS 为 true 时拼接远程地址，否则原样返回本地相对路径
 export function assetUrl(p) {
