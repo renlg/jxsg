@@ -1577,6 +1577,10 @@ export class HomeScene extends Scene {
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
+        if (c === 0) {
+          this._renderStoneCell(ctx, r)
+          continue
+        }
         const dx = lawnX + c * cell
         const dy = lawnY + r * cell
         const useFirst = (r + c) % 2 === 0
@@ -1595,6 +1599,64 @@ export class HomeScene extends Scene {
     grad.addColorStop(1, 'rgba(0,0,0,0.15)')
     ctx.fillStyle = grad
     ctx.fillRect(lawnX, lawnY, this.lawnW, this.lawnH)
+  }
+
+  // 最左列为不可部署的石柱装饰；石块完全由 Canvas 绘制，不依赖额外素材。
+  _renderStoneCell(ctx, r) {
+    const rect = this._cellRect(r, 0)
+    const { x, y, w, h } = rect
+
+    ctx.save()
+
+    // 石块落在地面上的柔和阴影。
+    ctx.fillStyle = 'rgba(40,32,24,0.3)'
+    ctx.beginPath()
+    ctx.ellipse(x + w * 0.5, y + h * 0.86, w * 0.38, h * 0.09, 0, 0, Math.PI * 2)
+    ctx.fill()
+
+    // 略不规则的圆润岩石主体。
+    const body = ctx.createLinearGradient(0, y + h * 0.12, 0, y + h * 0.88)
+    body.addColorStop(0, '#8a8378')
+    body.addColorStop(1, '#6b6559')
+    ctx.beginPath()
+    ctx.moveTo(x + w * 0.2, y + h * 0.82)
+    ctx.bezierCurveTo(x + w * 0.1, y + h * 0.68, x + w * 0.12, y + h * 0.38, x + w * 0.25, y + h * 0.2)
+    ctx.bezierCurveTo(x + w * 0.37, y + h * 0.08, x + w * 0.66, y + h * 0.1, x + w * 0.78, y + h * 0.22)
+    ctx.bezierCurveTo(x + w * 0.9, y + h * 0.38, x + w * 0.91, y + h * 0.68, x + w * 0.79, y + h * 0.82)
+    ctx.bezierCurveTo(x + w * 0.65, y + h * 0.91, x + w * 0.35, y + h * 0.91, x + w * 0.2, y + h * 0.82)
+    ctx.closePath()
+    ctx.fillStyle = body
+    ctx.fill()
+    ctx.strokeStyle = '#4a4038'
+    ctx.lineWidth = Math.max(2, w * 0.035)
+    ctx.lineJoin = 'round'
+    ctx.stroke()
+
+    // 简单切面让石块保持扁平卡通感，同时有清楚的体积层次。
+    ctx.fillStyle = 'rgba(68,62,54,0.42)'
+    ctx.beginPath()
+    ctx.moveTo(x + w * 0.22, y + h * 0.59)
+    ctx.lineTo(x + w * 0.4, y + h * 0.48)
+    ctx.lineTo(x + w * 0.37, y + h * 0.8)
+    ctx.lineTo(x + w * 0.24, y + h * 0.76)
+    ctx.closePath()
+    ctx.fill()
+
+    ctx.fillStyle = 'rgba(61,56,49,0.34)'
+    ctx.beginPath()
+    ctx.moveTo(x + w * 0.58, y + h * 0.25)
+    ctx.lineTo(x + w * 0.77, y + h * 0.34)
+    ctx.lineTo(x + w * 0.72, y + h * 0.62)
+    ctx.lineTo(x + w * 0.53, y + h * 0.52)
+    ctx.closePath()
+    ctx.fill()
+
+    ctx.fillStyle = '#b5aea2'
+    ctx.beginPath()
+    ctx.ellipse(x + w * 0.34, y + h * 0.3, w * 0.1, h * 0.055, -0.35, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.restore()
   }
 
   // 草坪上方居中的 60 秒守关进度条，不遮挡顶部状态栏、部署网格或底部卡槽。
@@ -1818,14 +1880,14 @@ export class HomeScene extends Scene {
     const barH = 6
     const cx = rect.x + rect.w / 2
     const barX = cx - barW / 2
-    const barY = portraitTop - 14
+    const barY = portraitTop - 7
 
     ctx.fillStyle = 'rgba(0,0,0,0.55)'
     ctx.fillRect(barX, barY, barW, barH)
     ctx.fillStyle = hpBarColor(entry.hp, entry.maxHp)
     ctx.fillRect(barX, barY, barW * Math.max(0, entry.hp / entry.maxHp), barH)
 
-    const lvY = barY - 12
+    const lvY = barY - 10
     ctx.font = `bold ${Math.round(cell * 0.16)}px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -2965,6 +3027,8 @@ export class HomeScene extends Scene {
         return
       }
 
+      if (c === 0) return
+
       if (this.selectedHero) {
         const card = this.hand[this.selectedCardIndex]
         if (!card) {
@@ -2995,7 +3059,7 @@ export class HomeScene extends Scene {
 
   // 判断某格是否可作为拖拽落点：需在草坪范围内，且未被其他武将占用（拖拽中的武将自身不计入占用）
   _dragCellValid(r, c) {
-    if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) return false
+    if (r < 0 || r >= this.rows || c < 0 || c >= this.cols || c === 0) return false
     return !this.deployed.some(e => e !== this._dragEntry && e.r === r && e.c === c)
   }
 
@@ -3108,7 +3172,9 @@ export class HomeScene extends Scene {
         const target = this.deployed.find(e => e.r === r && e.c === c)
         this._dragHoverValid = r >= 0 && r < this.rows && c >= 0 && c < this.cols &&
           !!card && card.heroId === this._dragCard.heroId &&
-          (!target || (target.heroId === card.heroId && target.level === card.level))
+          (target
+            ? target.heroId === card.heroId && target.level === card.level
+            : c !== 0)
       } else {
         this._dragHoverValid = this._dragCellValid(r, c)
       }
