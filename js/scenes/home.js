@@ -1759,15 +1759,15 @@ export class HomeScene extends Scene {
       ctx.stroke()
 
       let flashInfo = null
-      if (heroId === 'zhaoyun' && this._zhaoyunFrameReady() && this._hasTargetInRange(entry) && !dying) {
+      if (heroId === 'zhaoyun' && this._zhaoyunFrameReady() && (this._hasTargetInRange(entry) || this._inAttackAnim(entry)) && !dying) {
         flashInfo = this._renderZhaoyunFrame(ctx, entry, rect)
-      } else if (heroId === 'guanyu' && this._guanyuFrameReady() && this._hasTargetInRange(entry) && !dying) {
+      } else if (heroId === 'guanyu' && this._guanyuFrameReady() && (this._hasTargetInRange(entry) || this._inAttackAnim(entry)) && !dying) {
         flashInfo = this._renderGuanyuFrame(ctx, entry, rect)
-      } else if (heroId === 'zhangfei' && this._zhangfeiFrameReady() && this._hasTargetInRange(entry) && !dying) {
+      } else if (heroId === 'zhangfei' && this._zhangfeiFrameReady() && (this._hasTargetInRange(entry) || this._inAttackAnim(entry)) && !dying) {
         flashInfo = this._renderZhangfeiFrame(ctx, entry, rect)
-      } else if (heroId === 'zhugeliang' && this._zhugeliangFramesReady() && this._hasTargetInRange(entry) && !dying) {
+      } else if (heroId === 'zhugeliang' && this._zhugeliangFramesReady() && (this._hasTargetInRange(entry) || this._inAttackAnim(entry)) && !dying) {
         flashInfo = this._renderZhugeliangFrame(ctx, entry, rect)
-      } else if (heroId === 'liubei' && this._liubeiFramesReady() && this._hasHealTargetInRange(entry) && !dying) {
+      } else if (heroId === 'liubei' && this._liubeiFramesReady() && (this._hasHealTargetInRange(entry) || this._inAttackAnim(entry)) && !dying) {
         flashInfo = this._renderLiubeiFrame(ctx, entry, rect)
       } else if (this.loaded && img) {
         let targetH = rect.h * 1.2
@@ -1862,6 +1862,15 @@ export class HomeScene extends Scene {
   // 不改变 HERO_STATS[heroId].attackCooldown 本身，只在动作+后摇更长时顺延下一次攻击的触发时机
   _attackRequiredGap(heroId) {
     return Math.max(HERO_STATS[heroId].attackCooldown, this._attackAnimPlayDur(heroId) + ATTACK_RECOVERY_PAUSE)
+  }
+
+  // 当前是否正处于攻击动画播放窗口内（从触发时刻起算，动作播完即结束，不含后摇）。
+  // 用于目标死亡/脱离射程时仍把当前这轮攻击动画播完，避免挥到一半被硬切回待机。
+  _inAttackAnim(entry) {
+    const last = this._entryAttackAnimStart(entry)
+    if (last === null) return false
+    const elapsed = (this.animT || 0) - last
+    return elapsed >= 0 && elapsed < this._attackAnimPlayDur(entry.heroId)
   }
 
   // 判断该武将当前是否处于"攻击动作已播完、正在后摇停顿"的窗口内，用于让无独立动作帧的武将
