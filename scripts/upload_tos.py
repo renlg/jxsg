@@ -57,6 +57,7 @@ def main():
         for attempt in range(RETRIES):
             try:
                 client.put_object(bucket, rel, content=content, content_type=ctype,
+                                  acl=tos.ACLType.ACL_Public_Read,
                                   cache_control='public, max-age=31536000, immutable')
                 return rel, f'OK {len(content)}B'
             except Exception as e:
