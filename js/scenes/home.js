@@ -219,6 +219,8 @@ export class HomeScene extends Scene {
     }
 
     this.imgs = {}
+    this.stoneImg = null
+    this._stoneReady = false
     this.heroImgs = {}
     this.zyImgs = {}
     this.gyImgs = {}
@@ -471,6 +473,10 @@ export class HomeScene extends Scene {
   }
 
   _loadImages() {
+    this.stoneImg = tt.createImage()
+    this.stoneImg.onload = () => { this._stoneReady = true }
+    getLocalAssetPath('assets/pvz_tiles/石头.png').then(path => { this.stoneImg.src = path })
+
     const list = [
       ['bg', 'assets/pvz_bg.jpg'],
       ['g1', 'assets/pvz_tiles/草地1_鲜绿.png'],
@@ -1577,10 +1583,6 @@ export class HomeScene extends Scene {
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
-        if (c === 0) {
-          this._renderStoneCell(ctx, r)
-          continue
-        }
         const dx = lawnX + c * cell
         const dy = lawnY + r * cell
         const useFirst = (r + c) % 2 === 0
@@ -1591,6 +1593,7 @@ export class HomeScene extends Scene {
           ctx.fillStyle = useFirst ? '#4caf50' : '#3d8b40'
           ctx.fillRect(dx, dy, cell, cell)
         }
+        if (c === 0) this._renderStoneCell(ctx, r)
       }
     }
 
@@ -1601,10 +1604,18 @@ export class HomeScene extends Scene {
     ctx.fillRect(lawnX, lawnY, this.lawnW, this.lawnH)
   }
 
-  // 最左列为不可部署的石柱装饰；石块完全由 Canvas 绘制，不依赖额外素材。
+  // 最左列为不可部署的石柱装饰；素材加载完成前使用 Canvas 石块占位。
   _renderStoneCell(ctx, r) {
     const rect = this._cellRect(r, 0)
     const { x, y, w, h } = rect
+
+    if (this._stoneReady && this.stoneImg) {
+      // 石头图片底部贴地，宽度占格子的 90%。
+      const sw = w * 0.9
+      const sh = sw * (this.stoneImg.height / this.stoneImg.width)
+      ctx.drawImage(this.stoneImg, x + (w - sw) / 2, y + h - sh, sw, sh)
+      return
+    }
 
     ctx.save()
 
