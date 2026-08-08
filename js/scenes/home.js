@@ -110,6 +110,7 @@ const MONSTER_SPAWN_INTERVAL_BASE = 2.8
 const MONSTER_SPAWN_INTERVAL_STEP = 0.22
 const MONSTER_SPAWN_INTERVAL_MIN = 0.6
 const DEBUG_MONSTER_DAMAGE = 1
+const DEBUG_HALF_HP = true
 
 // 根据剩余血量百分比返回血条填充色：>70% 默认绿色，<=70% 黄色，<=30% 红色
 function hpBarColor(hp, maxHp) {
@@ -900,12 +901,13 @@ export class HomeScene extends Scene {
       walkFrameCount = LB_WALK_FRAMES.length
     }
 
+    if (DEBUG_HALF_HP) monsterHp = Math.round(monsterHp / 2)
     if (DEBUG_MONSTER_DAMAGE > 0) monsterDamage = DEBUG_MONSTER_DAMAGE
 
     this.monsters.push({
       id: this.monsterIdSeq++,
       type: monsterType,
-      r: Math.floor(Math.random() * this.rows),
+      r: ['zhangjiao', 'dongzhuo', 'lvbu'].includes(monsterType) ? 1 : Math.floor(Math.random() * this.rows),
       x: this.game.width + 40,
       hp: monsterHp,
       maxHp: monsterHp,
@@ -929,6 +931,8 @@ export class HomeScene extends Scene {
   // 判断怪物当前位置是否进入对已部署武将的停止/攻击范围（同行直线距离，PVZ 式）
   _monsterInHeroRange(m) {
     if (m.type === 'zhangjiao') return this._zhangjiaoAoeTargets(m).length > 0
+    if (m.type === 'dongzhuo') return this._bossColumnTargets(m, 1).length > 0
+    if (m.type === 'lvbu') return this._bossColumnTargets(m, 2).length > 0
     const range = m.type === 'gongjian' ? RANGED_RANGE_CELLS : MONSTER_RANGE_CELLS
     return this.deployed.some(entry => {
       if (entry.dying) return false
@@ -1030,6 +1034,22 @@ export class HomeScene extends Scene {
       })
       return
     }
+    if (m.type === 'dongzhuo' || m.type === 'lvbu') {
+      const range = m.type === 'dongzhuo' ? 1 : 2
+      const targets = this._bossColumnTargets(m, range)
+      if (targets.length === 0) return
+      m.lastAttackT = this.animT
+      this.pendingHits.push({
+        t: 0,
+        hitAt: this._monsterAttackPlayDur(m),
+        kind: m.type === 'dongzhuo' ? 'dongzhuoSwordQi' : 'lvbuSlashWave',
+        monster: m,
+        targets,
+        dmg: m.damage,
+        resolved: false
+      })
+      return
+    }
     const target = this._monsterDamageTarget(m)
     if (!target) return
     m.lastAttackT = this.animT
@@ -1056,6 +1076,14 @@ export class HomeScene extends Scene {
       .sort((a, b) => a.dist - b.dist)
       .slice(0, ZHANGJIAO_AOE_MAX_TARGETS)
       .map(candidate => candidate.entry)
+  }
+
+  // 董卓/吕布攻击怪物前方的整列区域：忽略行，只按与怪物的连续水平格距锁定所有武将。
+  _bossColumnTargets(m, range) {
+    return this.deployed.filter(entry => {
+      if (entry.dying) return false
+      return this._cellDistToMonster(entry, m, false) <= range
+    })
   }
 
   // 选取怪物停止范围内同行且距离最近的武将作为受击目标；治疗单位刘备也必须可被攻击。
@@ -1169,7 +1197,7 @@ export class HomeScene extends Scene {
     this.pendingHits.forEach(hit => {
       if (hit.resolved) return
       // 怪物被眩晕期间，其挥击命中判定也一并冻结（与动画帧冻结保持一致），眩晕结束后从冻结处继续计时
-      if ((hit.kind === 'monsterMelee' || hit.kind === 'monsterRangedCast' || hit.kind === 'zhangjiaoLightning') && hit.monster.stunT > 0) return
+      if ((hit.kind === 'monsterMelee' || hit.kind === 'monsterRangedCast' || hit.kind === 'zhangjiaoLightning' || hit.kind === 'dongzhuoSwordQi' || hit.kind === 'lvbuSlashWave') && hit.monster.stunT > 0) return
       hit.t += dt
       if (hit.t >= hit.hitAt) {
         hit.resolved = true
@@ -1181,6 +1209,10 @@ export class HomeScene extends Scene {
           this._resolveMonsterRangedCast(hit)
         } else if (hit.kind === 'zhangjiaoLightning') {
           this._resolveZhangjiaoLightningHit(hit)
+        } else if (hit.kind === 'dongzhuoSwordQi') {
+          this._resolveDongzhuoSwordQiHit(hit)
+        } else if (hit.kind === 'lvbuSlashWave') {
+          this._resolveLvbuSlashWaveHit(hit)
         } else if (hit.kind === 'zhugeliangCast') {
           this._resolveZhugeliangCast(hit)
         } else if (hit.kind === 'heroHeal') {
@@ -1267,6 +1299,42 @@ export class HomeScene extends Scene {
       if (target.hp <= 0) this._killHero(target)
     })
     if (hitAny) playHit()
+  }
+
+  // 董卓剑气命中：整列目标同时受伤，剑气特效只生成一次并覆盖草坪全部行。
+  _resolveDongzhuoSwordQiHit(hit) {
+    let hitAny = false
+    hit.targets.forEach(target => {
+      if (!target || target.dying || this.deployed.indexOf(target) === -1) return
+      target.hp -= hit.dmg
+      target.hurtT = 0.25
+      hitAny = true
+      const rect = this._cellRect(target.r, target.c)
+      this.fx.push({ x: rect.x + rect.w / 2, y: rect.y + rect.h * 0.3, t: 0, dur: DMG_TEXT_DUR, kind: 'dmg', text: `-${hit.dmg}` })
+      if (target.hp <= 0) this._killHero(target)
+    })
+    if (hitAny) {
+      this.fx.push({ x: hit.monster.x - this.cell * 0.5, y: this.lawnY + this.lawnH / 2, t: 0, dur: 0.35, kind: 'swordQi' })
+      playHit()
+    }
+  }
+
+  // 吕布剑浪命中：覆盖怪物前方两格的所有行，伤害与浮字逐目标结算。
+  _resolveLvbuSlashWaveHit(hit) {
+    let hitAny = false
+    hit.targets.forEach(target => {
+      if (!target || target.dying || this.deployed.indexOf(target) === -1) return
+      target.hp -= hit.dmg
+      target.hurtT = 0.25
+      hitAny = true
+      const rect = this._cellRect(target.r, target.c)
+      this.fx.push({ x: rect.x + rect.w / 2, y: rect.y + rect.h * 0.3, t: 0, dur: DMG_TEXT_DUR, kind: 'dmg', text: `-${hit.dmg}` })
+      if (target.hp <= 0) this._killHero(target)
+    })
+    if (hitAny) {
+      this.fx.push({ x: hit.monster.x - this.cell, y: this.lawnY + this.lawnH / 2, t: 0, dur: 0.35, kind: 'slashWave' })
+      playHit()
+    }
   }
 
   // 弓箭手放箭时再次确认双方仍存活且目标仍在同一行射程内；失去目标时本次射击落空。
@@ -2279,6 +2347,48 @@ export class HomeScene extends Scene {
         ctx.beginPath()
         ctx.arc(f.x, f.y, this.cell * 0.3, -Math.PI * 0.3, Math.PI * 0.3)
         ctx.stroke()
+        ctx.restore()
+      } else if (f.kind === 'swordQi') {
+        const height = this.lawnH * (0.9 + progress * 0.1)
+        const bend = this.cell * 0.25
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.lineCap = 'round'
+        ctx.shadowColor = '#8ff5ff'
+        ctx.shadowBlur = this.cell * 0.2
+        ctx.strokeStyle = '#8ff5ff'
+        ctx.lineWidth = Math.max(6, this.cell * 0.1) * (1 - progress * 0.5)
+        ctx.beginPath()
+        ctx.moveTo(f.x - bend, f.y + height / 2)
+        ctx.quadraticCurveTo(f.x + bend, f.y, f.x - bend * 0.35, f.y - height / 2)
+        ctx.stroke()
+        ctx.shadowBlur = 0
+        ctx.strokeStyle = '#fffde7'
+        ctx.lineWidth = Math.max(2, this.cell * 0.035)
+        ctx.stroke()
+        ctx.restore()
+      } else if (f.kind === 'slashWave') {
+        const height = this.lawnH * (0.92 + progress * 0.08)
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.lineCap = 'round'
+        ctx.shadowColor = '#ffd76a'
+        ctx.shadowBlur = this.cell * 0.24
+        ;[-0.45, 0.45].forEach((offset, i) => {
+          const x = f.x + offset * this.cell
+          const bend = (i === 0 ? 1 : -1) * this.cell * 0.28
+          ctx.strokeStyle = '#ffd76a'
+          ctx.lineWidth = Math.max(7, this.cell * 0.11) * (1 - progress * 0.5)
+          ctx.beginPath()
+          ctx.moveTo(x - bend, f.y + height / 2)
+          ctx.quadraticCurveTo(x + bend, f.y, x - bend * 0.25, f.y - height / 2)
+          ctx.stroke()
+          ctx.shadowBlur = 0
+          ctx.strokeStyle = '#fffdf2'
+          ctx.lineWidth = Math.max(2, this.cell * 0.035)
+          ctx.stroke()
+          ctx.shadowBlur = this.cell * 0.24
+        })
         ctx.restore()
       } else if (f.kind === 'lightning') {
         const points = []
