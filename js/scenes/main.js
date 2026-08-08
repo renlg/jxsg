@@ -28,7 +28,7 @@ const FRAGMENT_GAIN_MAX = 3
 const PULL_FLIP_DUR = 0.35
 const PULL_DONE_HOLD = 0.6
 const GACHA_TOAST_DUR = 0.8
-const LEVEL_COUNT = 10
+const LEVEL_COUNT = 15
 const LEVEL_DRAG_THRESHOLD = 8
 
 // 主页面（大厅）：水墨山水背景 + 顶部玩家栏 + 武将陈列 + 关卡选择入口

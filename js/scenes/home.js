@@ -68,6 +68,8 @@ const XIAOBING_WALK_FRAME_COUNT = 10
 // 刀斧手/弓箭手素材帧号不连续，按文件名排序后的顺序播放
 const DAOFU_FRAMES = ['006', '009', '011', '014', '015', '018', '031', '034', '035', '038', '091', '095', '099', '103', '107', '110']
 const DAOFU_WALK_FRAMES = ['006', '014', '022', '030', '038', '046', '054', '062', '070', '078', '086', '094', '102', '110', '118', '126']
+const LB_FRAMES = ['011', '019', '027', '035', '043', '051', '059', '067', '075', '083', '091', '099', '107', '115', '123', '131', '139', '147', '155', '163', '171', '179', '187']
+const LB_WALK_FRAMES = ['008', '020', '032', '044', '056', '068', '080', '092', '104', '116', '128', '140', '152', '164', '176', '188']
 const GONGJIAN_FRAMES = ['003', '006', '007', '010', '011', '018', '042', '047', '095', '099', '103', '106', '149', '151', '155', '159']
 const GONGJIAN_WALK_FRAMES = ['006', '014', '022', '030', '038', '046', '054', '062', '070', '078', '086', '094', '102', '110', '118', '126']
 const ZJ_FRAMES = ['051', '055', '062', '066', '074', '087', '091', '122', '127', '135', '143', '151', '155', '163', '167']
@@ -98,8 +100,8 @@ const XIAOBING_ATTACK_PLAY_DUR = XIAOBING_FRAME_COUNT / XIAOBING_ATTACK_FPS
 // 不改变原有 1.0s 节奏本身，只是在动作+后摇更长时顺延下一次攻击，避免动作被打断/循环
 const MONSTER_ATTACK_GAP = Math.max(1.0, XIAOBING_ATTACK_PLAY_DUR + ATTACK_RECOVERY_PAUSE)
 
-// 战役共 10 关；每关守住 60 秒即胜利，怪物属性和出怪间隔在进关时按关卡等级计算。
-const LEVEL_COUNT = 10
+// 战役共 15 关；每关守住 60 秒即胜利，怪物属性和出怪间隔在进关时按关卡等级计算。
+const LEVEL_COUNT = 15
 const BATTLE_TIME_LIMIT = 180
 const MONSTER_SPAWN_FIRST = 1.5
 const MONSTER_MAX_ALIVE = 8
@@ -219,6 +221,8 @@ export class HomeScene extends Scene {
     this.xbwImgs = {}
     this.dfImgs = {}
     this.dfwImgs = {}
+    this.lvbuImgs = {}
+    this.lvbuwImgs = {}
     this.gjsImgs = {}
     this.gjswImgs = {}
     this.zjImgs = {}
@@ -250,6 +254,8 @@ export class HomeScene extends Scene {
     this._loadXiaobingWalkFrames()
     this._loadDaofuFrames()
     this._loadDaofuWalkFrames()
+    this._loadLvbuFrames()
+    this._loadLvbuWalkFrames()
     this._loadGongjianFrames()
     this._loadGongjianWalkFrames()
     this._loadZhangjiaoFrames()
@@ -636,6 +642,38 @@ export class HomeScene extends Scene {
     return DAOFU_WALK_FRAMES.every((_, i) => this.dfwImgs[`dfw_${i}`])
   }
 
+  _loadLvbuFrames() {
+    if (this._lvbuLoadStarted) return
+    this._lvbuLoadStarted = true
+    LB_FRAMES.forEach((suffix, i) => {
+      const key = `lvbu_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.lvbuImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 吕布动作帧加载失败:', key, suffix) }
+      img.src = `assets/lvbu_anim/lb_${suffix}.png`
+    })
+  }
+
+  _lvbuFramesReady() {
+    return LB_FRAMES.every((_, i) => this.lvbuImgs[`lvbu_${i}`])
+  }
+
+  _loadLvbuWalkFrames() {
+    if (this._lvbuwLoadStarted) return
+    this._lvbuwLoadStarted = true
+    LB_WALK_FRAMES.forEach((suffix, i) => {
+      const key = `lvbuw_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.lvbuwImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 吕布走路帧加载失败:', key, suffix) }
+      img.src = `assets/lvbu_walk/lbw_${suffix}.png`
+    })
+  }
+
+  _lvbuWalkFramesReady() {
+    return LB_WALK_FRAMES.every((_, i) => this.lvbuwImgs[`lvbuw_${i}`])
+  }
+
   _loadGongjianFrames() {
     if (this._gjsLoadStarted) return
     this._gjsLoadStarted = true
@@ -800,7 +838,7 @@ export class HomeScene extends Scene {
   _updateMonsterSpawn(dt) {
     // 计时结束即停止出怪；BOSS 关在最后 20 秒生成唯一 BOSS，且它是本关最后一只怪物。
     if (this.battleTime >= BATTLE_TIME_LIMIT) return
-    const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : null
+    const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : this.level === 15 ? 'lvbu' : null
     if (bossType && !this.bossSpawned && this.battleTime >= BATTLE_TIME_LIMIT - 20) {
       this._spawnMonster(bossType)
       this.bossSpawned = true
@@ -843,6 +881,10 @@ export class HomeScene extends Scene {
       monsterHp = 80 * monsterLevelMultiplier
       monsterDamage = 6 * monsterLevelMultiplier
       walkFrameCount = DZ_WALK_FRAMES.length
+    } else if (monsterType === 'lvbu') {
+      monsterHp = 120 * monsterLevelMultiplier
+      monsterDamage = 8 * monsterLevelMultiplier
+      walkFrameCount = LB_WALK_FRAMES.length
     }
 
     this.monsters.push({
@@ -945,6 +987,7 @@ export class HomeScene extends Scene {
     if (m.type === 'xiaobing') return XIAOBING_ATTACK_PLAY_DUR
     if (m.type === 'zhangjiao') return ZJ_FRAMES.length / MONSTER_ATTACK_FPS
     if (m.type === 'dongzhuo') return DZ_FRAMES.length / MONSTER_ATTACK_FPS
+    if (m.type === 'lvbu') return LB_FRAMES.length / MONSTER_ATTACK_FPS
     const frameCount = m.type === 'gongjian' ? GONGJIAN_FRAMES.length : DAOFU_FRAMES.length
     return frameCount / MONSTER_ATTACK_FPS
   }
@@ -1863,6 +1906,8 @@ export class HomeScene extends Scene {
     const zhangjiaoWalkReady = this._zhangjiaoWalkFramesReady()
     const dongzhuoAttackReady = this._dongzhuoFramesReady()
     const dongzhuoWalkReady = this._dongzhuoWalkFramesReady()
+    const lvbuAttackReady = this._lvbuFramesReady()
+    const lvbuWalkReady = this._lvbuWalkFramesReady()
     this.monsters.forEach(m => {
       const cellTop = this.lawnY + m.r * cell
       const cy = cellTop + cell * 0.5
@@ -1928,6 +1973,18 @@ export class HomeScene extends Scene {
         walkImgs = this.dzwImgs
         attackPrefix = 'dz'
         walkPrefix = 'dzw'
+        attackFlip = false
+        walkFlip = false
+      } else if (type === 'lvbu') {
+        attackFramesReady = lvbuAttackReady
+        walkFramesReady = lvbuWalkReady
+        attackFrameCount = LB_FRAMES.length
+        walkFrameCount = LB_WALK_FRAMES.length
+        attackFps = MONSTER_ATTACK_FPS
+        attackImgs = this.lvbuImgs
+        walkImgs = this.lvbuwImgs
+        attackPrefix = 'lvbu'
+        walkPrefix = 'lvbuw'
         attackFlip = false
         walkFlip = false
       }
