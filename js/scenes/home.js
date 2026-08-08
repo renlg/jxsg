@@ -1997,11 +1997,16 @@ export class HomeScene extends Scene {
     if (!img) return null
 
     let targetH = rect.h * 1.2
-    const scale = targetH / img.height
-    const dw = img.width * scale
-    const dh = targetH
+    let scale = targetH / img.height
+    let dw = img.width * scale
+    let dh = targetH
+    if (dw > rect.w * 1.2) {
+      scale = (rect.w * 1.2) / img.width
+      dw = rect.w * 1.2
+      dh = img.height * scale
+    }
     const dx = rect.x + (rect.w - dw) / 2
-    const dy = rect.y + rect.h * 0.05 - rect.h * 0.12
+    const dy = rect.y - rect.h * 0.15
     ctx.drawImage(img, dx, dy, dw, dh)
     return { img, dx, dy, dw, dh }
   }
@@ -2017,12 +2022,17 @@ export class HomeScene extends Scene {
     const img = this.gyImgs[`gy_${frameIdx}`]
     if (!img) return null
 
-    const targetH = rect.h * 1.2
-    const scale = targetH / img.height
-    const dw = img.width * scale
-    const dh = targetH
+    let targetH = rect.h * 1.2
+    let scale = targetH / img.height
+    let dw = img.width * scale
+    let dh = targetH
+    if (dw > rect.w * 1.2) {
+      scale = (rect.w * 1.2) / img.width
+      dw = rect.w * 1.2
+      dh = img.height * scale
+    }
     const dx = rect.x + (rect.w - dw) / 2
-    const dy = rect.y + rect.h * 0.05 - rect.h * 0.12
+    const dy = rect.y - rect.h * 0.15
     ctx.drawImage(img, dx, dy, dw, dh)
     return { img, dx, dy, dw, dh }
   }
@@ -2038,12 +2048,17 @@ export class HomeScene extends Scene {
     const img = this.zfImgs[`zf_${frameIdx}`]
     if (!img) return null
 
-    const targetH = rect.h * 1.2
-    const scale = targetH / img.height
-    const dw = img.width * scale
-    const dh = targetH
+    let targetH = rect.h * 1.2
+    let scale = targetH / img.height
+    let dw = img.width * scale
+    let dh = targetH
+    if (dw > rect.w * 1.2) {
+      scale = (rect.w * 1.2) / img.width
+      dw = rect.w * 1.2
+      dh = img.height * scale
+    }
     const dx = rect.x + (rect.w - dw) / 2
-    const dy = rect.y + rect.h * 0.05 - rect.h * 0.12
+    const dy = rect.y - rect.h * 0.15
     ctx.drawImage(img, dx, dy, dw, dh)
     return { img, dx, dy, dw, dh }
   }
@@ -2059,12 +2074,17 @@ export class HomeScene extends Scene {
     const img = this.lbImgs[`lb_${frameIdx}`]
     if (!img) return null
 
-    const targetH = rect.h * 1.2
-    const scale = targetH / img.height
-    const dw = img.width * scale
-    const dh = targetH
+    let targetH = rect.h * 1.2
+    let scale = targetH / img.height
+    let dw = img.width * scale
+    let dh = targetH
+    if (dw > rect.w * 1.2) {
+      scale = (rect.w * 1.2) / img.width
+      dw = rect.w * 1.2
+      dh = img.height * scale
+    }
     const dx = rect.x + (rect.w - dw) / 2
-    const dy = rect.y + rect.h * 0.05 - rect.h * 0.12
+    const dy = rect.y - rect.h * 0.15
     ctx.drawImage(img, dx, dy, dw, dh)
     return { img, dx, dy, dw, dh }
   }
@@ -2083,12 +2103,17 @@ export class HomeScene extends Scene {
     const img = this.zglImgs[`zgl_${frameIdx}`]
     if (!img) return null
 
-    const targetH = rect.h * 1.2
-    const scale = targetH / img.height
-    const dw = img.width * scale
-    const dh = targetH
+    let targetH = rect.h * 1.2
+    let scale = targetH / img.height
+    let dw = img.width * scale
+    let dh = targetH
+    if (dw > rect.w * 1.2) {
+      scale = (rect.w * 1.2) / img.width
+      dw = rect.w * 1.2
+      dh = img.height * scale
+    }
     const dx = rect.x + (rect.w - dw) / 2
-    const dy = rect.y + rect.h * 0.05 - rect.h * 0.12
+    const dy = rect.y - rect.h * 0.15
     ctx.drawImage(img, dx, dy, dw, dh)
     return { img, dx, dy, dw, dh }
   }
