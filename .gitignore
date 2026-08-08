@@ -2,3 +2,4 @@
 # 本地不再打包，REMOTE_ASSETS=true 时从远程加载。
 # 如需重新上传：python3 scripts/upload_tos.py（需 TOS_AK/TOS_SK/TOS_BUCKET）
 assets/
+.DS_Store
