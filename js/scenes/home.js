@@ -110,9 +110,6 @@ const MONSTER_ATTACK_COOLDOWN = 1.0
 const MONSTER_SPAWN_INTERVAL_BASE = 2.8
 const MONSTER_SPAWN_INTERVAL_STEP = 0.22
 const MONSTER_SPAWN_INTERVAL_MIN = 0.6
-const DEBUG_MONSTER_DAMAGE = 1
-const DEBUG_HALF_HP = true
-const DEBUG_HERO_DAMAGE_MULT = 50
 
 // 根据剩余血量百分比返回血条填充色：>70% 默认绿色，<=70% 黄色，<=30% 红色
 function hpBarColor(hp, maxHp) {
@@ -356,14 +353,12 @@ export class HomeScene extends Scene {
   _heroDamage(heroId, level = 1) {
     const base = HERO_STATS[heroId]
     let damage = Math.round(base.damage * (1 + HERO_DAMAGE_LEVEL_BONUS * (level - 1)))
-    if (DEBUG_HERO_DAMAGE_MULT > 1) damage = Math.round(damage * DEBUG_HERO_DAMAGE_MULT)
     return damage
   }
 
   _heroEffectiveStats(heroId, level = 1) {
     const base = HERO_STATS[heroId]
     let maxHp = Math.round(base.maxHp * (1 + HERO_HP_LEVEL_BONUS * (level - 1)))
-    if (DEBUG_HALF_HP) maxHp = Math.round(maxHp / 2)
     return {
       maxHp,
       damage: this._heroDamage(heroId, level)
@@ -920,9 +915,6 @@ export class HomeScene extends Scene {
       monsterDamage = 8 * monsterLevelMultiplier
       walkFrameCount = LB_WALK_FRAMES.length
     }
-
-    if (DEBUG_HALF_HP) monsterHp = Math.round(monsterHp / 2)
-    if (DEBUG_MONSTER_DAMAGE > 0) monsterDamage = DEBUG_MONSTER_DAMAGE
 
     this.monsters.push({
       id: this.monsterIdSeq++,
