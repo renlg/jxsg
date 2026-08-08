@@ -1,3 +1,4 @@
-java-springboot-demo/
-upload_assets/
-.DS_Store
+# 素材已上传抖音云 TOS（桶 tt5dfd2b40c39801bd02-env-igrgycscux），
+# 本地不再打包，REMOTE_ASSETS=true 时从远程加载。
+# 如需重新上传：python3 scripts/upload_tos.py（需 TOS_AK/TOS_SK/TOS_BUCKET）
+assets/

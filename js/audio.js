@@ -1,5 +1,6 @@
 // 音频管理：背景音乐（主城/战斗）与攻击/受击音效的创建、播放与销毁
 import { isSoundOn, isMusicOn } from './data.js'
+import { assetUrl } from './config.js'
 
 let mainBgCtx = null
 let battleBgCtx = null
@@ -26,7 +27,7 @@ export function playMainBg() {
   stopBattleBg()
   if (!isMusicOn()) return
   if (mainBgCtx) return // 已在播放，避免重复创建
-  mainBgCtx = createLoopMusic('assets/sound/main_bg.mp3')
+  mainBgCtx = createLoopMusic(assetUrl('assets/sound/main_bg.mp3'))
   mainBgCtx.play()
 }
 
@@ -40,7 +41,7 @@ export function playBattleBg() {
   stopMainBg()
   if (!isMusicOn()) return
   if (battleBgCtx) return
-  battleBgCtx = createLoopMusic('assets/sound/battle_bg.mp3')
+  battleBgCtx = createLoopMusic(assetUrl('assets/sound/battle_bg.mp3'))
   battleBgCtx.play()
 }
 
@@ -64,9 +65,9 @@ function playSfx(kind, src, currentCtx) {
 }
 
 export function playAttack() {
-  attackCtx = playSfx('attack', 'assets/sound/attack.mp3', attackCtx) || attackCtx
+  attackCtx = playSfx('attack', assetUrl('assets/sound/attack.mp3'), attackCtx) || attackCtx
 }
 
 export function playHit() {
-  hitCtx = playSfx('hit', 'assets/sound/hit.mp3', hitCtx) || hitCtx
+  hitCtx = playSfx('hit', assetUrl('assets/sound/hit.mp3'), hitCtx) || hitCtx
 }

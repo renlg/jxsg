@@ -1,4 +1,5 @@
 import { Scene } from './scene.js'
+import { assetUrl } from '../config.js'
 
 // 开始页：水墨山水背景 + 游戏标题 + "开始游戏" 按钮，点击后进入主页面
 export class StartScene extends Scene {
@@ -6,7 +7,7 @@ export class StartScene extends Scene {
     this.bgImg = null
     const img = tt.createImage()
     img.onload = () => { this.bgImg = img }
-    img.src = 'assets/pvz_bg.jpg'
+    img.src = assetUrl('assets/pvz_bg.jpg')
 
     const w = this.game.width
     const h = this.game.height
