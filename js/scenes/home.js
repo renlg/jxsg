@@ -2136,8 +2136,8 @@ export class HomeScene extends Scene {
         walkImgs = this.lvbuwImgs
         attackPrefix = 'lvbu'
         walkPrefix = 'lvbuw'
-        attackFlip = false
-        walkFlip = false
+        attackFlip = true
+        walkFlip = true
       }
 
       const useAttack = m.attacking && attackFramesReady
