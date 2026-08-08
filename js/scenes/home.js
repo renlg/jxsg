@@ -2253,13 +2253,14 @@ export class HomeScene extends Scene {
       }
 
       if (img) {
-        const targetH = cell * 1.0
+        const bossScale = (m.type === 'zhangjiao' || m.type === 'dongzhuo' || m.type === 'lvbu') ? 2 : 1
+        const targetH = cell * 1.0 * bossScale
         let dscale = targetH / img.height
         let dw = img.width * dscale
         let dh = targetH
-        if (dw > cell * 1.1) {
-          dscale = (cell * 1.1) / img.width
-          dw = cell * 1.1
+        if (dw > cell * 1.1 * bossScale) {
+          dscale = (cell * 1.1 * bossScale) / img.width
+          dw = cell * 1.1 * bossScale
           dh = img.height * dscale
         }
         const dx = m.x - dw / 2
