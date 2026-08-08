@@ -61,8 +61,18 @@ const LIUBEI_FRAMES = ['12', '16', '19', '22', '25', '28', '31', '34', '37', '40
 // 小兵攻击动画帧数（小兵.mp4，朝左），来源于同一段动作视频的关键帧截取
 const XIAOBING_FRAME_COUNT = 11
 
-// 小兵行走动画帧数（小兵走路.mp4，朝右，渲染时水平翻转成朝左）
+// 小兵行走动画帧数（小兵走路.mp4，朝左）
 const XIAOBING_WALK_FRAME_COUNT = 10
+
+// 刀斧手/弓箭手素材帧号不连续，按文件名排序后的顺序播放
+const DAOFU_FRAMES = ['006', '009', '011', '014', '015', '018', '031', '034', '035', '038', '091', '095', '099', '103', '107', '110']
+const DAOFU_WALK_FRAMES = ['006', '014', '022', '030', '038', '046', '054', '062', '070', '078', '086', '094', '102', '110', '118', '126']
+const GONGJIAN_FRAMES = ['003', '006', '007', '010', '011', '018', '042', '047', '095', '099', '103', '106', '149', '151', '155', '159']
+const GONGJIAN_WALK_FRAMES = ['006', '014', '022', '030', '038', '046', '054', '062', '070', '078', '086', '094', '102', '110', '118', '126']
+const ZJ_FRAMES = ['051', '055', '062', '066', '074', '087', '091', '122', '127', '135', '143', '151', '155', '163', '167']
+const ZJ_WALK_FRAMES = ['008', '020', '032', '044', '056', '068', '080', '092', '104', '116', '128', '140', '152', '164', '176', '188']
+const DZ_FRAMES = ['007', '013', '019', '025', '031', '037', '043', '049', '083', '091', '095', '099', '103', '107', '111', '115', '119', '123']
+const DZ_WALK_FRAMES = ['008', '015', '022', '029', '036', '043', '050', '057', '064', '071', '078', '085', '092', '099', '106', '113']
 
 const ATTACK_ANIM_DUR = 0.35
 // 近战命中判定点：动作播放到此比例时才是"打实"的一刻（挥砍/突刺到位），之前不结算伤害
@@ -76,6 +86,7 @@ const ATTACK_HIT_POINT = ATTACK_ANIM_DUR * 0.6
 // 攻击触发后帧序号按各自帧率单次播完，不再循环——攻速越快帧率越高，动作播得越快
 // 小兵挥击动作帧率（与 _renderMonsters 保持一致）
 const XIAOBING_ATTACK_FPS = 8
+const MONSTER_ATTACK_FPS = 8
 
 // 后摇停顿（所有攻击动作播完后的静止/保持收势姿态时长）：攻击动画播放结束 -> 后摇停顿 -> 冷却允许时才能开始下一次攻击，
 // 避免攻击动作首尾相接、循环播放造成的"抽搐感"。取值需要清晰可见但不拖沓，故选 0.3s
@@ -105,6 +116,8 @@ function hpBarColor(hp, maxHp) {
 }
 
 const MONSTER_RANGE_CELLS = 0.8
+const RANGED_RANGE_CELLS = 3
+const RANGED_ATTACK_RELEASE_POINT = 0.6
 const PROJECTILE_SPEED = 300
 const PROJECTILE_HIT_DIST = 14
 const PROJECTILE_MAX_ALIVE = 12
@@ -200,6 +213,14 @@ export class HomeScene extends Scene {
     this.lbImgs = {}
     this.xbImgs = {}
     this.xbwImgs = {}
+    this.dfImgs = {}
+    this.dfwImgs = {}
+    this.gjsImgs = {}
+    this.gjswImgs = {}
+    this.zjImgs = {}
+    this.zjwImgs = {}
+    this.dzImgs = {}
+    this.dzwImgs = {}
     this.loaded = false
     this.hand = this._drawHand()
     // 金币与武将等级为跨场景共享存档，读档失败/首次进入则使用默认值（含测试初始金币）
@@ -223,6 +244,14 @@ export class HomeScene extends Scene {
     this._loadLiubeiFrames()
     this._loadXiaobingFrames()
     this._loadXiaobingWalkFrames()
+    this._loadDaofuFrames()
+    this._loadDaofuWalkFrames()
+    this._loadGongjianFrames()
+    this._loadGongjianWalkFrames()
+    this._loadZhangjiaoFrames()
+    this._loadZhangjiaoWalkFrames()
+    this._loadDongzhuoFrames()
+    this._loadDongzhuoWalkFrames()
 
     this._layoutButtons()
 
@@ -247,10 +276,11 @@ export class HomeScene extends Scene {
     this.monsterSpawnT = MONSTER_SPAWN_FIRST
     this.monsterIdSeq = 0
     this.monstersSpawned = 0
+    this.bossSpawned = false
     this.lastAtkT = {} // key: `${heroId}_${r}_${c}` -> last attack time
     this.fx = [] // [{ x, y, t, dur, kind, text }]
     this.goldPop = 0
-    this.projectiles = [] // [{ id, x, y, target, speed, t, heroId, heroEntry }]
+    this.projectiles = [] // kind: 'magic'（诸葛亮法球）或 'arrow'（弓箭手箭矢）
     this.projectileIdSeq = 0
     this.pendingHits = [] // [{ t, delay, kind: 'hero'|'monster', heroEntry, monster, target, dmg, resolved }]
     this.gameOver = false
@@ -568,6 +598,134 @@ export class HomeScene extends Scene {
     return true
   }
 
+  _loadDaofuFrames() {
+    if (this._dfLoadStarted) return
+    this._dfLoadStarted = true
+    DAOFU_FRAMES.forEach((suffix, i) => {
+      const key = `df_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.dfImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 刀斧手动作帧加载失败:', key, suffix) }
+      img.src = `assets/daofushou_anim/df_${suffix}.png`
+    })
+  }
+
+  _daofuFramesReady() {
+    return DAOFU_FRAMES.every((_, i) => this.dfImgs[`df_${i}`])
+  }
+
+  _loadDaofuWalkFrames() {
+    if (this._dfwLoadStarted) return
+    this._dfwLoadStarted = true
+    DAOFU_WALK_FRAMES.forEach((suffix, i) => {
+      const key = `dfw_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.dfwImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 刀斧手走路帧加载失败:', key, suffix) }
+      img.src = `assets/daofushou_walk/dfw_${suffix}.png`
+    })
+  }
+
+  _daofuWalkFramesReady() {
+    return DAOFU_WALK_FRAMES.every((_, i) => this.dfwImgs[`dfw_${i}`])
+  }
+
+  _loadGongjianFrames() {
+    if (this._gjsLoadStarted) return
+    this._gjsLoadStarted = true
+    GONGJIAN_FRAMES.forEach((suffix, i) => {
+      const key = `gjs_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.gjsImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 弓箭手动作帧加载失败:', key, suffix) }
+      img.src = `assets/gongjianshou_anim/gjs_${suffix}.png`
+    })
+  }
+
+  _gongjianFramesReady() {
+    return GONGJIAN_FRAMES.every((_, i) => this.gjsImgs[`gjs_${i}`])
+  }
+
+  _loadGongjianWalkFrames() {
+    if (this._gjswLoadStarted) return
+    this._gjswLoadStarted = true
+    GONGJIAN_WALK_FRAMES.forEach((suffix, i) => {
+      const key = `gjsw_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.gjswImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 弓箭手走路帧加载失败:', key, suffix) }
+      img.src = `assets/gongjianshou_walk/gjsw_${suffix}.png`
+    })
+  }
+
+  _gongjianWalkFramesReady() {
+    return GONGJIAN_WALK_FRAMES.every((_, i) => this.gjswImgs[`gjsw_${i}`])
+  }
+
+  _loadZhangjiaoFrames() {
+    if (this._zjLoadStarted) return
+    this._zjLoadStarted = true
+    ZJ_FRAMES.forEach((suffix, i) => {
+      const key = `zj_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.zjImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 张角动作帧加载失败:', key, suffix) }
+      img.src = `assets/zhangjiao_anim/zj_${suffix}.png`
+    })
+  }
+
+  _zhangjiaoFramesReady() {
+    return ZJ_FRAMES.every((_, i) => this.zjImgs[`zj_${i}`])
+  }
+
+  _loadZhangjiaoWalkFrames() {
+    if (this._zjwLoadStarted) return
+    this._zjwLoadStarted = true
+    ZJ_WALK_FRAMES.forEach((suffix, i) => {
+      const key = `zjw_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.zjwImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 张角走路帧加载失败:', key, suffix) }
+      img.src = `assets/zhangjiao_walk/zjw_${suffix}.png`
+    })
+  }
+
+  _zhangjiaoWalkFramesReady() {
+    return ZJ_WALK_FRAMES.every((_, i) => this.zjwImgs[`zjw_${i}`])
+  }
+
+  _loadDongzhuoFrames() {
+    if (this._dzLoadStarted) return
+    this._dzLoadStarted = true
+    DZ_FRAMES.forEach((suffix, i) => {
+      const key = `dz_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.dzImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 董卓动作帧加载失败:', key, suffix) }
+      img.src = `assets/dongzhuo_anim/dz_${suffix}.png`
+    })
+  }
+
+  _dongzhuoFramesReady() {
+    return DZ_FRAMES.every((_, i) => this.dzImgs[`dz_${i}`])
+  }
+
+  _loadDongzhuoWalkFrames() {
+    if (this._dzwLoadStarted) return
+    this._dzwLoadStarted = true
+    DZ_WALK_FRAMES.forEach((suffix, i) => {
+      const key = `dzw_${i}`
+      const img = tt.createImage()
+      img.onload = () => { this.dzwImgs[key] = img }
+      img.onerror = () => { console.error('[Home] 董卓走路帧加载失败:', key, suffix) }
+      img.src = `assets/dongzhuo_walk/dzw_${suffix}.png`
+    })
+  }
+
+  _dongzhuoWalkFramesReady() {
+    return DZ_WALK_FRAMES.every((_, i) => this.dzwImgs[`dzw_${i}`])
+  }
+
   reRollHeroes() {
     this.hand = this._drawHand()
     this._loadHeroImages()
@@ -621,10 +779,6 @@ export class HomeScene extends Scene {
 
     if (!this.gameOver && !this.levelCleared) {
       this.battleTime = Math.min(BATTLE_TIME_LIMIT, this.battleTime + dt)
-      if (this.battleTime >= BATTLE_TIME_LIMIT) {
-        this._checkLevelCleared()
-        return
-      }
       this._updateMonsterSpawn(dt)
       this._updateMonsters(dt)
       this._updateAttacks(dt)
@@ -638,47 +792,83 @@ export class HomeScene extends Scene {
   }
 
   _updateMonsterSpawn(dt) {
-    // 计时结束即停止出怪；此前不设总数上限，按当前关卡间隔持续出怪整整一分钟。
+    // 计时结束即停止出怪；BOSS 关在最后 20 秒生成唯一 BOSS，且它是本关最后一只怪物。
     if (this.battleTime >= BATTLE_TIME_LIMIT) return
+    const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : null
+    if (bossType && !this.bossSpawned && this.battleTime >= BATTLE_TIME_LIMIT - 20) {
+      this._spawnMonster(bossType)
+      this.bossSpawned = true
+      return
+    }
+    if (this.bossSpawned) return
+
     this.monsterSpawnT -= dt
     if (this.monsterSpawnT <= 0) {
       this.monsterSpawnT += this.monsterSpawnInterval
       if (this.monsters.length < MONSTER_MAX_ALIVE) {
-        const w = this.game.width
         const monsterLevel = this.level
-        const monsterLevelMultiplier = Math.pow(2, monsterLevel - 1)
-        const monsterMaxHp = Math.round(6 * monsterLevelMultiplier)
-        const monsterDamage = 1 * monsterLevelMultiplier
-        this.monsters.push({
-          id: this.monsterIdSeq++,
-          r: Math.floor(Math.random() * this.rows),
-          x: w + 40,
-          hp: monsterMaxHp,
-          maxHp: monsterMaxHp,
-          level: monsterLevel,
-          speed: this.monsterSpeed,
-          damage: monsterDamage,
-          hitT: 0,
-          state: 'walking',
-          dead: false,
-          killT: 0,
-          attacking: false,
-          attackT: 0,
-          dmgCd: 0,
-          lastAttackT: -Infinity,
-          stunT: 0,
-          wpid: Math.random() * XIAOBING_WALK_FRAME_COUNT
-        })
-        this.monstersSpawned++
+        // 已解锁类型按权重抽取：小兵 : 刀斧手 : 弓箭手 = 2 : 1 : 1
+        const typeRoll = Math.random() * (monsterLevel >= 3 ? 4 : monsterLevel >= 2 ? 3 : 2)
+        const monsterType = typeRoll < 2 ? 'xiaobing' : typeRoll < 3 ? 'daofu' : 'gongjian'
+        this._spawnMonster(monsterType)
       }
     }
   }
 
+  _spawnMonster(monsterType) {
+    const monsterLevel = this.level
+    const monsterLevelMultiplier = Math.pow(2, monsterLevel - 1)
+    let monsterHp = Math.round(6 * monsterLevelMultiplier)
+    let monsterDamage = monsterType === 'xiaobing'
+      ? monsterLevelMultiplier
+      : Math.round(1.5 * monsterLevelMultiplier)
+    let walkFrameCount = monsterType === 'xiaobing'
+      ? XIAOBING_WALK_FRAME_COUNT
+      : monsterType === 'daofu' ? DAOFU_WALK_FRAMES.length : GONGJIAN_WALK_FRAMES.length
+
+    if (monsterType === 'daofu') {
+      // 刀斧手血量翻倍（6 → 12 基础值，随关卡翻倍）
+      monsterHp = Math.round(12 * monsterLevelMultiplier)
+    } else if (monsterType === 'zhangjiao') {
+      monsterHp = 40 * monsterLevelMultiplier
+      monsterDamage = 4 * monsterLevelMultiplier
+      walkFrameCount = ZJ_WALK_FRAMES.length
+    } else if (monsterType === 'dongzhuo') {
+      monsterHp = 80 * monsterLevelMultiplier
+      monsterDamage = 6 * monsterLevelMultiplier
+      walkFrameCount = DZ_WALK_FRAMES.length
+    }
+
+    this.monsters.push({
+      id: this.monsterIdSeq++,
+      type: monsterType,
+      r: Math.floor(Math.random() * this.rows),
+      x: this.game.width + 40,
+      hp: monsterHp,
+      maxHp: monsterHp,
+      level: monsterLevel,
+      speed: this.monsterSpeed,
+      damage: monsterDamage,
+      hitT: 0,
+      state: 'walking',
+      dead: false,
+      killT: 0,
+      attacking: false,
+      attackT: 0,
+      dmgCd: 0,
+      lastAttackT: -Infinity,
+      stunT: 0,
+      wpid: Math.random() * walkFrameCount
+    })
+    this.monstersSpawned++
+  }
+
   // 判断怪物当前位置是否进入对已部署武将的停止/攻击范围（同行直线距离，PVZ 式）
   _monsterInHeroRange(m) {
+    const range = m.type === 'gongjian' ? RANGED_RANGE_CELLS : MONSTER_RANGE_CELLS
     return this.deployed.some(entry => {
       if (entry.dying) return false
-      return this._cellDistToMonster(entry, m) <= MONSTER_RANGE_CELLS
+      return this._cellDistToMonster(entry, m) <= range
     })
   }
 
@@ -728,9 +918,8 @@ export class HomeScene extends Scene {
         if (inAttackRange) {
           if (m.attackT > 0) m.attackT -= dt
           if (m.dmgCd > 0) m.dmgCd -= dt
-          // 挥击节奏本身不变（仍是 MONSTER_ATTACK_COOLDOWN 一次），但还要等上一次挥击动作播完 + 后摇停顿
-          // （MONSTER_ATTACK_GAP）才允许触发下一次，避免小兵攻击帧无间断循环
-          if (m.dmgCd <= 0 && this.animT - m.lastAttackT >= MONSTER_ATTACK_GAP) {
+          // 攻击节奏本身仍以 MONSTER_ATTACK_COOLDOWN 为基础；16 帧新怪需等各自动作播完并经过后摇。
+          if (m.dmgCd <= 0 && this.animT - m.lastAttackT >= this._monsterAttackGap(m)) {
             this._monsterAttackHero(m)
             m.dmgCd = MONSTER_ATTACK_COOLDOWN
           }
@@ -746,24 +935,45 @@ export class HomeScene extends Scene {
     this.monsters = this.monsters.filter(m => !m.dead)
   }
 
-  // 怪物在攻击范围内起手挥击；伤害不在这里立刻结算，而是排入 pendingHits，
-  // 等到挥击动作播完（XIAOBING_ATTACK_PLAY_DUR，动作结束的一刻）才真正扣血——
-  // 之后的 ATTACK_RECOVERY_PAUSE 只是保持收势姿态的视觉停顿，不再延后伤害
+  _monsterAttackPlayDur(m) {
+    if (m.type === 'xiaobing') return XIAOBING_ATTACK_PLAY_DUR
+    if (m.type === 'zhangjiao') return ZJ_FRAMES.length / MONSTER_ATTACK_FPS
+    if (m.type === 'dongzhuo') return DZ_FRAMES.length / MONSTER_ATTACK_FPS
+    const frameCount = m.type === 'gongjian' ? GONGJIAN_FRAMES.length : DAOFU_FRAMES.length
+    return frameCount / MONSTER_ATTACK_FPS
+  }
+
+  _monsterAttackGap(m) {
+    if (m.type === 'xiaobing') return MONSTER_ATTACK_GAP
+    return Math.max(MONSTER_ATTACK_COOLDOWN, this._monsterAttackPlayDur(m) + ATTACK_RECOVERY_PAUSE)
+  }
+
+  // 近战怪物在动作播完时结算挥击；弓箭手则在动作约 60% 处放箭，伤害延后至箭矢命中。
   _monsterAttackHero(m) {
     const target = this._monsterDamageTarget(m)
     if (!target) return
     m.lastAttackT = this.animT
-    this.pendingHits.push({ t: 0, hitAt: XIAOBING_ATTACK_PLAY_DUR, kind: 'monsterMelee', monster: m, target, dmg: m.damage, resolved: false })
+    const ranged = m.type === 'gongjian'
+    this.pendingHits.push({
+      t: 0,
+      hitAt: ranged ? this._monsterAttackPlayDur(m) * RANGED_ATTACK_RELEASE_POINT : this._monsterAttackPlayDur(m),
+      kind: ranged ? 'monsterRangedCast' : 'monsterMelee',
+      monster: m,
+      target,
+      dmg: m.damage,
+      resolved: false
+    })
   }
 
   // 选取怪物停止范围内同行且距离最近的武将作为受击目标；治疗单位刘备也必须可被攻击。
   _monsterDamageTarget(m) {
+    const range = m.type === 'gongjian' ? RANGED_RANGE_CELLS : MONSTER_RANGE_CELLS
     let best = null
     let bestDist = Infinity
     this.deployed.forEach(entry => {
       if (entry.dying) return
       const dist = this._cellDistToMonster(entry, m)
-      if (dist > MONSTER_RANGE_CELLS) return
+      if (dist > range) return
       if (dist < bestDist) {
         bestDist = dist
         best = entry
@@ -865,7 +1075,7 @@ export class HomeScene extends Scene {
     this.pendingHits.forEach(hit => {
       if (hit.resolved) return
       // 怪物被眩晕期间，其挥击命中判定也一并冻结（与动画帧冻结保持一致），眩晕结束后从冻结处继续计时
-      if (hit.kind === 'monsterMelee' && hit.monster.stunT > 0) return
+      if ((hit.kind === 'monsterMelee' || hit.kind === 'monsterRangedCast') && hit.monster.stunT > 0) return
       hit.t += dt
       if (hit.t >= hit.hitAt) {
         hit.resolved = true
@@ -873,6 +1083,8 @@ export class HomeScene extends Scene {
           this._resolveHeroMeleeHit(hit)
         } else if (hit.kind === 'monsterMelee') {
           this._resolveMonsterMeleeHit(hit)
+        } else if (hit.kind === 'monsterRangedCast') {
+          this._resolveMonsterRangedCast(hit)
         } else if (hit.kind === 'zhugeliangCast') {
           this._resolveZhugeliangCast(hit)
         } else if (hit.kind === 'heroHeal') {
@@ -937,6 +1149,28 @@ export class HomeScene extends Scene {
     }
   }
 
+  // 弓箭手放箭时再次确认双方仍存活且目标仍在同一行射程内；失去目标时本次射击落空。
+  _resolveMonsterRangedCast(hit) {
+    const m = hit.monster
+    const target = hit.target
+    if (!m || m.dead || m.state !== 'walking' || m.type !== 'gongjian') return
+    if (!target || target.dying || this.deployed.indexOf(target) === -1) return
+    if (this._cellDistToMonster(target, m) > RANGED_RANGE_CELLS) return
+    const targetRect = this._cellRect(target.r, target.c)
+    this.projectiles.push({
+      id: this.projectileIdSeq++,
+      kind: 'arrow',
+      x: m.x - this.cell * 0.16,
+      y: this.lawnY + m.r * this.cell + this.cell * 0.48,
+      target,
+      speed: PROJECTILE_SPEED,
+      t: 0,
+      monster: m,
+      dmg: hit.dmg,
+      angle: Math.atan2(targetRect.y + targetRect.h / 2 - (this.lawnY + m.r * this.cell + this.cell * 0.48), targetRect.x + targetRect.w / 2 - m.x)
+    })
+  }
+
   // 诸葛亮整段施法动画（_attackAnimPlayDur('zhugeliang')，前摇->挥扇->回收全部播完）结束后才生成法球并发射，
   // 目标此时仍存活行进中才发射；伤害仍在 _updateProjectiles 中弹体命中目标那一刻结算，不受此处影响
   _resolveZhugeliangCast(hit) {
@@ -947,6 +1181,7 @@ export class HomeScene extends Scene {
     const rect = this._cellRect(entry.r, entry.c)
     this.projectiles.push({
       id: this.projectileIdSeq++,
+      kind: 'magic',
       x: rect.x + rect.w / 2,
       y: rect.y + rect.h / 2,
       target,
@@ -958,13 +1193,17 @@ export class HomeScene extends Scene {
     })
   }
 
-  // 诸葛亮的追踪魔法弹：每帧朝目标当前位置homing移动，命中或目标死亡后结算
+  // 统一更新诸葛亮法球和弓箭手箭矢；箭矢不改锁，原目标死亡后直接消失。
   _updateProjectiles(dt) {
     if (this.projectiles.length > PROJECTILE_MAX_ALIVE) {
       this.projectiles = this.projectiles.slice(this.projectiles.length - PROJECTILE_MAX_ALIVE)
     }
     this.projectiles.forEach(p => {
       if (p.dead) return
+      if (p.kind === 'arrow') {
+        this._updateArrowProjectile(p, dt)
+        return
+      }
       if (!p.target || p.target.dead || p.target.state !== 'walking') {
         p.target = this._retargetProjectile(p)
       }
@@ -996,6 +1235,34 @@ export class HomeScene extends Scene {
       p.y += ny * p.speed * dt
     })
     this.projectiles = this.projectiles.filter(p => !p.dead)
+  }
+
+  _updateArrowProjectile(p, dt) {
+    const target = p.target
+    if (!target || target.dying || this.deployed.indexOf(target) === -1) {
+      p.dead = true
+      return
+    }
+    const rect = this._cellRect(target.r, target.c)
+    const targetX = rect.x + rect.w / 2
+    const targetY = rect.y + rect.h / 2
+    const dx = targetX - p.x
+    const dy = targetY - p.y
+    const dist = Math.hypot(dx, dy)
+    p.px = p.x
+    p.py = p.y
+    p.angle = Math.atan2(dy, dx)
+    if (dist < PROJECTILE_HIT_DIST) {
+      target.hp -= p.dmg
+      target.hurtT = 0.25
+      this.fx.push({ x: targetX, y: targetY - this.cell * 0.2, t: 0, dur: DMG_TEXT_DUR, kind: 'dmg', text: `-${p.dmg}` })
+      this.fx.push({ x: targetX, y: targetY, t: 0, dur: 0.2, kind: 'slash', color: '#d8b06a' })
+      if (target.hp <= 0) this._killHero(target)
+      p.dead = true
+      return
+    }
+    p.x += (dx / dist) * p.speed * dt
+    p.y += (dy / dist) * p.speed * dt
   }
 
   // 目标死亡时，尝试在武将射程内改锁最近的存活怪物（同行直线距离），否则弹体消失
@@ -1037,6 +1304,7 @@ export class HomeScene extends Scene {
   _checkLevelCleared() {
     if (this.gameOver || this.levelCleared) return
     if (this.battleTime < BATTLE_TIME_LIMIT) return
+    if (this.monsters.some(m => !m.dead && m.state !== 'dying')) return
     this.levelCleared = true
     this.savedLevel = Math.max(this.savedLevel, Math.min(this.level + 1, LEVEL_COUNT))
     this._saveProgress()
@@ -1576,8 +1844,16 @@ export class HomeScene extends Scene {
 
   _renderMonsters(ctx) {
     const cell = this.cell
-    const attackFramesReady = this._xiaobingFramesReady()
-    const walkFramesReady = this._xiaobingWalkFramesReady()
+    const xiaobingAttackReady = this._xiaobingFramesReady()
+    const xiaobingWalkReady = this._xiaobingWalkFramesReady()
+    const daofuAttackReady = this._daofuFramesReady()
+    const daofuWalkReady = this._daofuWalkFramesReady()
+    const gongjianAttackReady = this._gongjianFramesReady()
+    const gongjianWalkReady = this._gongjianWalkFramesReady()
+    const zhangjiaoAttackReady = this._zhangjiaoFramesReady()
+    const zhangjiaoWalkReady = this._zhangjiaoWalkFramesReady()
+    const dongzhuoAttackReady = this._dongzhuoFramesReady()
+    const dongzhuoWalkReady = this._dongzhuoWalkFramesReady()
     this.monsters.forEach(m => {
       const cellTop = this.lawnY + m.r * cell
       const cy = cellTop + cell * 0.5
@@ -1585,28 +1861,88 @@ export class HomeScene extends Scene {
 
       let spriteTop = cy - cell * 0.35
 
-      // 攻击帧素材（小兵.mp4）和走路帧素材（小兵走路.mp4）本身都朝左，均无需翻转
+      const type = m.type || 'xiaobing'
+      let attackFramesReady = xiaobingAttackReady
+      let walkFramesReady = xiaobingWalkReady
+      let attackFrameCount = XIAOBING_FRAME_COUNT
+      let walkFrameCount = XIAOBING_WALK_FRAME_COUNT
+      let attackFps = XIAOBING_ATTACK_FPS
+      let attackImgs = this.xbImgs
+      let walkImgs = this.xbwImgs
+      let attackPrefix = 'xb'
+      let walkPrefix = 'xbw'
+      let attackFlip = false
+      let walkFlip = false
+      if (type === 'daofu') {
+        attackFramesReady = daofuAttackReady
+        walkFramesReady = daofuWalkReady
+        attackFrameCount = DAOFU_FRAMES.length
+        walkFrameCount = DAOFU_WALK_FRAMES.length
+        attackFps = MONSTER_ATTACK_FPS
+        attackImgs = this.dfImgs
+        walkImgs = this.dfwImgs
+        attackPrefix = 'df'
+        walkPrefix = 'dfw'
+        attackFlip = false
+        walkFlip = false
+      } else if (type === 'gongjian') {
+        attackFramesReady = gongjianAttackReady
+        walkFramesReady = gongjianWalkReady
+        attackFrameCount = GONGJIAN_FRAMES.length
+        walkFrameCount = GONGJIAN_WALK_FRAMES.length
+        attackFps = MONSTER_ATTACK_FPS
+        attackImgs = this.gjsImgs
+        walkImgs = this.gjswImgs
+        attackPrefix = 'gjs'
+        walkPrefix = 'gjsw'
+        attackFlip = false
+        walkFlip = false
+      } else if (type === 'zhangjiao') {
+        attackFramesReady = zhangjiaoAttackReady
+        walkFramesReady = zhangjiaoWalkReady
+        attackFrameCount = ZJ_FRAMES.length
+        walkFrameCount = ZJ_WALK_FRAMES.length
+        attackFps = MONSTER_ATTACK_FPS
+        attackImgs = this.zjImgs
+        walkImgs = this.zjwImgs
+        attackPrefix = 'zj'
+        walkPrefix = 'zjw'
+        attackFlip = false
+        walkFlip = false
+      } else if (type === 'dongzhuo') {
+        attackFramesReady = dongzhuoAttackReady
+        walkFramesReady = dongzhuoWalkReady
+        attackFrameCount = DZ_FRAMES.length
+        walkFrameCount = DZ_WALK_FRAMES.length
+        attackFps = MONSTER_ATTACK_FPS
+        attackImgs = this.dzImgs
+        walkImgs = this.dzwImgs
+        attackPrefix = 'dz'
+        walkPrefix = 'dzw'
+        attackFlip = false
+        walkFlip = false
+      }
+
       const useAttack = m.attacking && attackFramesReady
       const useWalk = !useAttack && walkFramesReady
       let img = null
       let flip = false
       if (useAttack) {
-        // 以本次挥击触发时刻（lastAttackT）为起点单次播完攻击帧，播完后停在最后一帧（后摇收势），
-        // 不再无间断循环，与 MONSTER_ATTACK_GAP 的节奏门控配套
+        // 以本次攻击触发时刻为起点单次播完，随后停在最后一帧等待后摇结束。
         const elapsed = (this.animT || 0) - m.lastAttackT
-        const playDur = XIAOBING_FRAME_COUNT / XIAOBING_ATTACK_FPS
+        const playDur = attackFrameCount / attackFps
         const frameIdx = (elapsed >= 0 && elapsed < playDur)
-          ? Math.floor(elapsed * XIAOBING_ATTACK_FPS)
-          : XIAOBING_FRAME_COUNT - 1
-        img = this.xbImgs[`xb_${frameIdx}`]
-        flip = false
+          ? Math.floor(elapsed * attackFps)
+          : attackFrameCount - 1
+        img = attackImgs[`${attackPrefix}_${frameIdx}`]
+        flip = attackFlip
       } else if (useWalk) {
         // 眩晕期间不再推进走路循环帧（避免站定不动却还在"跑腿"），停在被眩晕那一刻的姿态上
         const frameIdx = m.stunT > 0
-          ? Math.floor(m.wpid) % XIAOBING_WALK_FRAME_COUNT
-          : Math.floor((this.animT || 0) * 8 + m.wpid) % XIAOBING_WALK_FRAME_COUNT
-        img = this.xbwImgs[`xbw_${frameIdx}`]
-        flip = false
+          ? Math.floor(m.wpid) % walkFrameCount
+          : Math.floor((this.animT || 0) * 8 + m.wpid) % walkFrameCount
+        img = walkImgs[`${walkPrefix}_${frameIdx}`]
+        flip = walkFlip
       }
 
       if (img) {
@@ -1639,7 +1975,15 @@ export class HomeScene extends Scene {
         }
 
         if (m.hitT > 0) {
-          this._drawSilhouetteFlash(ctx, img, dx, dy, dw, dh, '#ffffff', 0.55)
+          if (flip) {
+            ctx.save()
+            ctx.translate(m.x, 0)
+            ctx.scale(-1, 1)
+            this._drawSilhouetteFlash(ctx, img, -dw / 2, dy, dw, dh, '#ffffff', 0.55)
+            ctx.restore()
+          } else {
+            this._drawSilhouetteFlash(ctx, img, dx, dy, dw, dh, '#ffffff', 0.55)
+          }
         }
 
         ctx.restore()
@@ -1725,10 +2069,14 @@ export class HomeScene extends Scene {
     ctx.restore()
   }
 
-  // 诸葛亮的追踪魔法弹：发光弹体 + 淡出拖尾
+  // 箭矢画成带箭头和尾羽的短木杆；诸葛亮法球保留原有发光弹体与拖尾。
   _renderProjectiles(ctx) {
     const r = Math.max(3, this.cell * 0.16)
     this.projectiles.forEach(p => {
+      if (p.kind === 'arrow') {
+        this._renderArrowProjectile(ctx, p)
+        return
+      }
       if (p.px !== undefined) {
         ctx.save()
         ctx.globalAlpha = 0.35
@@ -1750,6 +2098,37 @@ export class HomeScene extends Scene {
       ctx.fill()
       ctx.restore()
     })
+  }
+
+  _renderArrowProjectile(ctx, p) {
+    const len = this.cell * 0.38
+    const head = Math.max(4, this.cell * 0.07)
+    ctx.save()
+    ctx.translate(p.x, p.y)
+    ctx.rotate(p.angle || Math.PI)
+    ctx.strokeStyle = '#6d421f'
+    ctx.lineWidth = Math.max(2, this.cell * 0.035)
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(-len / 2, 0)
+    ctx.lineTo(len / 2, 0)
+    ctx.stroke()
+    ctx.fillStyle = '#d9d2bd'
+    ctx.beginPath()
+    ctx.moveTo(len / 2 + head, 0)
+    ctx.lineTo(len / 2 - head * 0.35, -head * 0.55)
+    ctx.lineTo(len / 2 - head * 0.35, head * 0.55)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = '#b53a32'
+    ctx.lineWidth = Math.max(1, this.cell * 0.025)
+    ctx.beginPath()
+    ctx.moveTo(-len / 2, 0)
+    ctx.lineTo(-len / 2 + head, -head * 0.65)
+    ctx.moveTo(-len / 2, 0)
+    ctx.lineTo(-len / 2 + head, head * 0.65)
+    ctx.stroke()
+    ctx.restore()
   }
 
   _renderFx(ctx) {
