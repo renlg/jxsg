@@ -117,7 +117,7 @@ function hpBarColor(hp, maxHp) {
 }
 
 const MONSTER_RANGE_CELLS = 0.8
-const RANGED_RANGE_CELLS = 3
+const RANGED_RANGE_CELLS = 2
 const RANGED_ATTACK_RELEASE_POINT = 0.6
 const PROJECTILE_SPEED = 300
 const PROJECTILE_HIT_DIST = 14
