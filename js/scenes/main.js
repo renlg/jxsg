@@ -131,7 +131,8 @@ export class MainScene extends Scene {
     const availableButtonW = (w - navSidePad * 2 - navGap * 3) / NAV_ITEMS.length
     const navButtonSize = Math.max(72, Math.min(96, Math.round(h * 0.23), availableButtonW))
     this.navH = navButtonSize + navBottomPad
-    this.navY = h - this.navH
+    const navLift = Math.max(20, Math.round(h * 0.04))
+    this.navY = h - this.navH - navLift
     const navTotalW = navButtonSize * NAV_ITEMS.length + navGap * (NAV_ITEMS.length - 1)
     const navStartX = (w - navTotalW) / 2
     this.navRects = NAV_ITEMS.map((item, i) => ({
