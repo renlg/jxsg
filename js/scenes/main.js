@@ -1,7 +1,7 @@
 import { Scene } from './scene.js'
 import { isMusicOn, isSoundOn, toggleMusic, toggleSound } from '../data.js'
 import { playMainBg, stopBattleBg, stopMainBg } from '../audio.js'
-import { getLocalAssetPath } from '../config.js'
+import { assetUrl, getLocalAssetPath } from '../config.js'
 
 const HERO_NAMES = ['guanyu', 'liubei', 'zhangfei', 'zhaoyun', 'zhugeliang']
 
@@ -32,11 +32,31 @@ const GACHA_TOAST_DUR = 0.8
 const LEVEL_COUNT = 15
 const LEVEL_DRAG_THRESHOLD = 8
 const NAV_ITEMS = [
-  { id: 'hero', label: '英雄', asset: 'assets/nav_hero.png' },
-  { id: 'bag', label: '背包', asset: 'assets/nav_bag.png' },
-  { id: 'level', label: '关卡', asset: 'assets/nav_level.png' },
-  { id: 'rank', label: '排行', asset: 'assets/nav_rank.png' }
+  { id: 'hero', label: '英雄', asset: 'assets/nav/nav_hero.png' },
+  { id: 'bag', label: '背包', asset: 'assets/nav/nav_bag.png' },
+  { id: 'level', label: '关卡', asset: 'assets/nav/nav_level.png' },
+  { id: 'rank', label: '排行', asset: 'assets/nav/nav_rank.png' }
 ]
+
+// 英雄面板展示数值，与 home.js 保持一致。
+const HERO_PANEL_STATS = {
+  guanyu: { damage: 40, maxHp: 200, attackCooldown: 1.8 },
+  zhangfei: { damage: 20, maxHp: 120, attackCooldown: 1.6 },
+  zhaoyun: { damage: 20, maxHp: 120, attackCooldown: 0.6 },
+  zhugeliang: { damage: 100, maxHp: 100, attackCooldown: 2.0 },
+  liubei: { damage: 0, maxHp: 300, attackCooldown: 2.0 }
+}
+const HERO_ATTACK_SPEED_BONUS_BY_LEVEL = [0, 0.1, 0.2, 0.3, 0.5]
+const GUANYU_DAMAGE_BY_LEVEL = [40, 76, 122, 196, 314]
+const GUANYU_HP_BY_LEVEL = [200, 320, 512, 820, 1312]
+const HERO_SKILL_TEXT = {
+  guanyu: '对选中行所有怪物造成伤害，伤害 = 当前最高等级伤害 × 等级',
+  zhangfei: '全屏怪物眩晕，持续 3 + (等级-1)×0.5 秒',
+  zhaoyun: '全体英雄攻速 +100%，持续 3 + (等级-1) 秒',
+  zhugeliang: '对 3×3 范围内怪物造成伤害，伤害 = 当前最高等级伤害',
+  liubei: '3×3 范围内英雄每秒回血（回血量 = 最高等级血量），持续 1 + (等级-1) 秒'
+}
+const NAV_PANEL = { hero: 'heroList', bag: 'bag', level: 'levels', rank: 'rank' }
 
 // 主页面（大厅）：水墨山水背景 + 顶部玩家栏 + 武将陈列 + 关卡选择入口
 export class MainScene extends Scene {
@@ -61,6 +81,12 @@ export class MainScene extends Scene {
     this.settingsMusicRect = null
     this.settingsSoundRect = null
     this.settingsCloseRect = null
+    this.panel = null
+    this.detailHeroId = null
+    this.panelRect = null
+    this.panelBackRect = null
+    this.panelCloseRect = null
+    this.heroListRects = []
     this.playerNickname = '主公'
     this._loadAvatar()
 
@@ -77,7 +103,7 @@ export class MainScene extends Scene {
     this._loadNavImgs()
 
     this._layoutLobby(w, h)
-    // 进入大厅时让当前（即下一待挑战）关卡居中显示。
+    // 进入大厅时预置关卡面板滚动位置，打开时还会按最新进度再次校正。
     this.scrollOffset = this._clampLevelScroll((this.level - 1) * this.levelCardStep)
     this.levelTouch = null
     this.pull = null
@@ -205,12 +231,12 @@ export class MainScene extends Scene {
     })
   }
 
-  // 底部导航图标由本地资源映射异步加载；资源未就绪时渲染函数会自动显示占位色块。
+  // 导航图标绕过 downloadFile 缓存链路，使用 TOS 远程地址让 createImage 直接加载。
   _loadNavImgs() {
     NAV_ITEMS.forEach(item => {
       const img = tt.createImage()
       img.onload = () => { this.navImgs[item.id] = img }
-      getLocalAssetPath(item.asset).then(path => { img.src = path }).catch(() => {})
+      img.src = assetUrl(item.asset)
     })
   }
 
@@ -275,13 +301,264 @@ export class MainScene extends Scene {
     this._renderBackdrop(ctx)
     this._renderParticles(ctx)
     this._renderTopBar(ctx)
-    this._renderSectionTitle(ctx)
-    this._renderHeroRow(ctx)
-    this._renderLevelSelector(ctx)
+    this._renderLobbyDecoration(ctx)
     this._renderBottomNav(ctx)
     this._renderFx(ctx)
-    this._renderPullEffect(ctx)
+    if (this.panel) this._renderPanel(ctx)
     if (this.settingsOpen) this._renderSettingsPanel(ctx)
+  }
+
+  // 主城中间区域保持留白，只用极淡题字维持画面层次。
+  _renderLobbyDecoration(ctx) {
+    const y = this.topBarH + (this.navY - this.topBarH) * 0.52
+    ctx.save()
+    ctx.fillStyle = 'rgba(244,218,148,0.18)'
+    ctx.font = `bold ${Math.max(18, Math.min(30, this.game.width * 0.045))}px serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('群 雄 聚 义', this.game.width / 2, y)
+    ctx.restore()
+  }
+
+  _renderPanel(ctx) {
+    const w = this.game.width
+    const h = this.game.height
+    const panelW = Math.min(760, w - 32)
+    const panelH = Math.min(h - 36, Math.max(300, h * 0.82))
+    const panelX = (w - panelW) / 2
+    const panelY = (h - panelH) / 2
+    this.panelRect = { x: panelX, y: panelY, w: panelW, h: panelH }
+    this.panelBackRect = { x: panelX + 14, y: panelY + 12, w: 64, h: 34 }
+    this.panelCloseRect = { x: panelX + panelW - 48, y: panelY + 10, w: 36, h: 36 }
+
+    ctx.save()
+    ctx.fillStyle = 'rgba(2,3,6,0.78)'
+    ctx.fillRect(0, 0, w, h)
+    ctx.shadowColor = 'rgba(0,0,0,0.72)'
+    ctx.shadowBlur = 22
+    this._roundRect(ctx, panelX, panelY, panelW, panelH, 17)
+    ctx.fillStyle = '#151922'
+    ctx.fill()
+    ctx.shadowBlur = 0
+    ctx.strokeStyle = '#b8872b'
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    const titles = { heroList: '英 雄', heroDetail: '英 雄 详 情', levels: '关 卡', bag: '背 包', rank: '排 行' }
+    ctx.fillStyle = '#f1d486'
+    ctx.font = 'bold 22px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(titles[this.panel] || '', w / 2, panelY + 31)
+    ctx.strokeStyle = 'rgba(205,166,72,0.28)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(panelX + 16, panelY + 54)
+    ctx.lineTo(panelX + panelW - 16, panelY + 54)
+    ctx.stroke()
+
+    const back = this.panelBackRect
+    ctx.fillStyle = '#e6d5a5'
+    ctx.font = 'bold 14px sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText('‹ 返回', back.x + 4, back.y + back.h / 2)
+    const close = this.panelCloseRect
+    ctx.strokeStyle = '#d8bd78'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(close.x + 9, close.y + 9)
+    ctx.lineTo(close.x + close.w - 9, close.y + close.h - 9)
+    ctx.moveTo(close.x + close.w - 9, close.y + 9)
+    ctx.lineTo(close.x + 9, close.y + close.h - 9)
+    ctx.stroke()
+
+    if (this.panel === 'heroList') this._renderHeroListPanel(ctx)
+    else if (this.panel === 'heroDetail') this._renderHeroDetailPanel(ctx)
+    else if (this.panel === 'levels') this._renderLevelsPanel(ctx)
+    else if (this.panel === 'bag') this._renderBagPanel(ctx)
+    else if (this.panel === 'rank') this._renderRankPanel(ctx)
+    ctx.restore()
+  }
+
+  _renderHeroListPanel(ctx) {
+    const panel = this.panelRect
+    const gap = Math.max(6, Math.min(14, panel.w * 0.018))
+    const innerW = panel.w - 36
+    const maxCardW = (innerW - gap * (HERO_NAMES.length - 1)) / HERO_NAMES.length
+    const cardW = Math.max(40, Math.min(104, maxCardW, (panel.h - 94) / 1.48))
+    const cardH = cardW * 1.48
+    const totalW = cardW * HERO_NAMES.length + gap * (HERO_NAMES.length - 1)
+    const startX = panel.x + (panel.w - totalW) / 2
+    const y = panel.y + 66 + Math.max(0, (panel.h - 76 - cardH) / 2)
+    this.heroListRects = []
+    HERO_NAMES.forEach((heroId, i) => {
+      const x = startX + i * (cardW + gap)
+      this._renderHeroCard(ctx, heroId, x, y, cardW, cardH, {})
+      this.heroListRects.push({ id: heroId, x, y, w: cardW, h: cardH })
+    })
+  }
+
+  _heroPanelStat(heroId, level, key) {
+    if (heroId === 'guanyu') {
+      return key === 'damage' ? GUANYU_DAMAGE_BY_LEVEL[level - 1] : GUANYU_HP_BY_LEVEL[level - 1]
+    }
+    const base = HERO_PANEL_STATS[heroId]
+    return Math.round(base[key] * Math.pow(1.6, level - 1))
+  }
+
+  _renderHeroDetailPanel(ctx) {
+    const panel = this.panelRect
+    const heroId = this.detailHeroId || HERO_NAMES[0]
+    const stats = HERO_PANEL_STATS[heroId]
+    const contentY = panel.y + 66
+    const portraitSize = Math.max(62, Math.min(112, panel.w * 0.19, panel.h * 0.31))
+    const portraitX = panel.x + 20
+    const portraitY = contentY + 4
+
+    this._roundRect(ctx, portraitX, portraitY, portraitSize, portraitSize, 12)
+    ctx.fillStyle = '#252a35'
+    ctx.fill()
+    ctx.strokeStyle = HERO_RARITY_COLOR[heroId]
+    ctx.lineWidth = 2
+    ctx.stroke()
+    const img = this.heroImgs[heroId]
+    if (img) {
+      const scale = Math.min((portraitSize - 8) / img.width, (portraitSize - 8) / img.height)
+      const dw = img.width * scale
+      const dh = img.height * scale
+      ctx.drawImage(img, portraitX + (portraitSize - dw) / 2, portraitY + portraitSize - dh - 4, dw, dh)
+    }
+    ctx.fillStyle = '#fff0b5'
+    ctx.font = 'bold 18px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(HERO_CN_NAME[heroId], portraitX + portraitSize / 2, portraitY + portraitSize + 18)
+
+    const tableX = portraitX + portraitSize + 18
+    const tableW = panel.x + panel.w - 20 - tableX
+    const rowH = Math.max(23, Math.min(30, (panel.h - 132) / 6))
+    const tableY = contentY
+    const columns = [0.08, 0.29, 0.53, 0.79]
+    const headers = ['等级', '伤害', '血量', '攻击间隔']
+    ctx.fillStyle = 'rgba(184,135,43,0.18)'
+    this._roundRect(ctx, tableX, tableY, tableW, rowH * 6, 8)
+    ctx.fill()
+    for (let i = 0; i <= 6; i++) {
+      ctx.strokeStyle = 'rgba(225,195,119,0.22)'
+      ctx.beginPath()
+      ctx.moveTo(tableX, tableY + i * rowH)
+      ctx.lineTo(tableX + tableW, tableY + i * rowH)
+      ctx.stroke()
+    }
+    ctx.font = `bold ${Math.max(10, Math.min(13, tableW * 0.045))}px sans-serif`
+    ctx.textAlign = 'left'
+    headers.forEach((label, i) => {
+      ctx.fillStyle = '#ead293'
+      ctx.fillText(label, tableX + tableW * columns[i], tableY + rowH / 2)
+    })
+    for (let level = 1; level <= 5; level++) {
+      const damage = this._heroPanelStat(heroId, level, 'damage')
+      const hp = this._heroPanelStat(heroId, level, 'maxHp')
+      const interval = (stats.attackCooldown / (1 + HERO_ATTACK_SPEED_BONUS_BY_LEVEL[level - 1])).toFixed(2)
+      const values = [`LV${level}`, String(damage), String(hp), `${interval}s`]
+      values.forEach((value, i) => {
+        ctx.fillStyle = level === (this.heroLevel[heroId] || 1) ? '#fff0ad' : '#d8dbe3'
+        ctx.fillText(value, tableX + tableW * columns[i], tableY + rowH * (level + 0.5))
+      })
+    }
+
+    const skillY = Math.max(portraitY + portraitSize + 43, tableY + rowH * 6 + 12)
+    const skillX = panel.x + 20
+    const skillW = panel.w - 40
+    const skillH = panel.y + panel.h - 16 - skillY
+    this._roundRect(ctx, skillX, skillY, skillW, Math.max(44, skillH), 9)
+    ctx.fillStyle = 'rgba(255,255,255,0.045)'
+    ctx.fill()
+    ctx.fillStyle = '#f0d58a'
+    ctx.font = 'bold 15px sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText('技能效果', skillX + 12, skillY + 18)
+    ctx.fillStyle = '#e0e2e8'
+    ctx.font = '13px sans-serif'
+    this._drawWrappedText(ctx, HERO_SKILL_TEXT[heroId], skillX + 12, skillY + 40, skillW - 24, 20, 3)
+  }
+
+  _renderLevelsPanel(ctx) {
+    const panel = this.panelRect
+    this.levelViewport = { x: panel.x + 18, y: panel.y + 72, w: panel.w - 36, h: panel.h - 90 }
+    this.levelCardH = Math.max(80, Math.min(180, this.levelViewport.h - 26))
+    this.levelCardW = Math.max(92, Math.min(156, this.levelCardH * 1.28, this.levelViewport.w * 0.48))
+    this.levelCardGap = Math.max(14, Math.min(24, Math.round(this.game.width * 0.025)))
+    this.levelCardStep = this.levelCardW + this.levelCardGap
+    this.levelSidePad = Math.max(0, (this.levelViewport.w - this.levelCardW) / 2)
+    this.maxScroll = Math.max(0, (LEVEL_COUNT - 1) * this.levelCardStep)
+    if (this.panelNeedsLevelCenter) {
+      // 沿用原 enter 的零基索引公式，让最新进度关卡默认居中。
+      this.scrollOffset = this._clampLevelScroll((this.level - 1) * this.levelCardStep)
+      this.panelNeedsLevelCenter = false
+    } else {
+      this.scrollOffset = this._clampLevelScroll(this.scrollOffset)
+    }
+    this._renderLevelSelector(ctx)
+  }
+
+  _renderBagPanel(ctx) {
+    const panel = this.panelRect
+    ctx.fillStyle = '#d5d8df'
+    ctx.font = 'bold 20px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('背包空空如也', panel.x + panel.w / 2, panel.y + panel.h / 2 + 12)
+  }
+
+  _renderRankPanel(ctx) {
+    const panel = this.panelRect
+    const row = { x: panel.x + 28, y: panel.y + 78, w: panel.w - 56, h: Math.min(78, panel.h * 0.22) }
+    this._roundRect(ctx, row.x, row.y, row.w, row.h, 10)
+    ctx.fillStyle = 'rgba(184,135,43,0.16)'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(226,189,88,0.5)'
+    ctx.stroke()
+    const avatarSize = Math.min(52, row.h - 14)
+    const avatarX = row.x + 16
+    const avatarY = row.y + (row.h - avatarSize) / 2
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2)
+    ctx.clip()
+    if (this.avatarImg) ctx.drawImage(this.avatarImg, avatarX, avatarY, avatarSize, avatarSize)
+    else {
+      ctx.fillStyle = '#303643'
+      ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize)
+    }
+    ctx.restore()
+    ctx.fillStyle = '#fff0b5'
+    ctx.font = 'bold 18px sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText('主公', avatarX + avatarSize + 16, row.y + row.h / 2)
+    ctx.fillStyle = '#f0c95d'
+    ctx.textAlign = 'right'
+    ctx.fillText('第 1 名', row.x + row.w - 18, row.y + row.h / 2)
+    ctx.fillStyle = '#989ca7'
+    ctx.font = '14px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText('暂无其他玩家', panel.x + panel.w / 2, row.y + row.h + 34)
+  }
+
+  _drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+    let line = ''
+    let lineIndex = 0
+    for (let i = 0; i < text.length && lineIndex < maxLines; i++) {
+      const testLine = line + text[i]
+      if (line && ctx.measureText(testLine).width > maxWidth) {
+        ctx.fillText(line, x, y + lineIndex * lineHeight)
+        line = text[i]
+        lineIndex++
+      } else {
+        line = testLine
+      }
+    }
+    if (line && lineIndex < maxLines) ctx.fillText(line, x, y + lineIndex * lineHeight)
   }
 
   _renderSettingsPanel(ctx) {
@@ -751,7 +1028,7 @@ export class MainScene extends Scene {
     ctx.stroke()
 
     this.navRects.forEach(rect => {
-      const active = rect.id === 'level'
+      const active = NAV_PANEL[rect.id] === this.panel
       const radius = Math.max(10, rect.w * 0.16)
       const buttonGrad = ctx.createLinearGradient(0, rect.y, 0, rect.y + rect.h)
       buttonGrad.addColorStop(0, active ? '#55431d' : '#292b32')
@@ -884,6 +1161,20 @@ export class MainScene extends Scene {
     return index + 1
   }
 
+  _closePanel() {
+    this.panel = null
+    this.detailHeroId = null
+    this.levelTouch = null
+    this.heroListRects = []
+  }
+
+  _openPanel(panel) {
+    this.panel = panel
+    this.detailHeroId = null
+    this.levelTouch = null
+    if (panel === 'levels') this.panelNeedsLevelCenter = true
+  }
+
   onTouch(x, y) {
     if (this.settingsOpen) {
       if (this.settingsCloseRect && this.hitRect(x, y, this.settingsCloseRect.x, this.settingsCloseRect.y, this.settingsCloseRect.w, this.settingsCloseRect.h)) {
@@ -902,6 +1193,27 @@ export class MainScene extends Scene {
       return
     }
 
+    // 面板命中优先于头像、导航和主屏内容，打开时完全暂停底层交互。
+    if (this.panel) {
+      if ((this.panelBackRect && this.hitRect(x, y, this.panelBackRect.x, this.panelBackRect.y, this.panelBackRect.w, this.panelBackRect.h)) ||
+          (this.panelCloseRect && this.hitRect(x, y, this.panelCloseRect.x, this.panelCloseRect.y, this.panelCloseRect.w, this.panelCloseRect.h))) {
+        this._closePanel()
+        return
+      }
+      if (this.panel === 'heroList') {
+        const card = this.heroListRects.find(rect => this.hitRect(x, y, rect.x, rect.y, rect.w, rect.h))
+        if (card) {
+          this.detailHeroId = card.id
+          this.panel = 'heroDetail'
+        }
+        return
+      }
+      if (this.panel === 'levels' && this.hitRect(x, y, this.levelViewport.x, this.levelViewport.y, this.levelViewport.w, this.levelViewport.h)) {
+        this.levelTouch = { startX: x, startY: y, startOffset: this.scrollOffset, moved: false }
+      }
+      return
+    }
+
     const avatarCx = this.leftPad + this.avatarSize / 2
     const avatarCy = this.topBarY + this.topBarH / 2
     if (Math.hypot(x - avatarCx, y - avatarCy) <= this.avatarSize / 2 + 5) {
@@ -914,26 +1226,13 @@ export class MainScene extends Scene {
     const nav = this.navRects.find(rect => this.hitRect(x, y, rect.x, rect.y, rect.w, rect.h))
     if (nav) {
       this.levelTouch = null
-      if (nav.id === 'level') {
-        this.game.switch('home', { level: this.level })
-      } else {
-        this.fx.push({ x: nav.x + nav.w / 2, y: this.navY - 4, t: 0, dur: GACHA_TOAST_DUR, text: '开发中', color: '#fff0b0' })
-      }
+      this._openPanel(NAV_PANEL[nav.id])
       return
-    }
-    if (this.hitRect(x, y, this.levelViewport.x, this.levelViewport.y, this.levelViewport.w, this.levelViewport.h)) {
-      this.levelTouch = { startX: x, startY: y, startOffset: this.scrollOffset, moved: false }
-      return
-    }
-    const card = this.cardRects.find(rect => this.hitRect(x, y, rect.x, rect.y, rect.w, rect.h))
-    if (card) {
-      this.pressedCard = card.id
-      this.pressedCardT = 0.14
     }
   }
 
   onTouchMove(x, y) {
-    if (!this.levelTouch) return
+    if (this.panel !== 'levels' || !this.levelTouch) return
     const dx = x - this.levelTouch.startX
     const dy = y - this.levelTouch.startY
     if (!this.levelTouch.moved && Math.hypot(dx, dy) >= LEVEL_DRAG_THRESHOLD) {
@@ -945,7 +1244,7 @@ export class MainScene extends Scene {
   }
 
   onTouchEnd(x, y) {
-    if (!this.levelTouch) return
+    if (this.panel !== 'levels' || !this.levelTouch) return
     const touch = this.levelTouch
     this.levelTouch = null
 
