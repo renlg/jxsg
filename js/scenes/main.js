@@ -84,7 +84,6 @@ export class MainScene extends Scene {
     this.panel = null
     this.detailHeroId = null
     this.panelRect = null
-    this.panelBackRect = null
     this.panelCloseRect = null
     this.heroListRects = []
     this.playerNickname = '主公'
@@ -120,19 +119,22 @@ export class MainScene extends Scene {
   }
 
   _layoutLobby(w, h) {
-    // 底部导航固定占据底边，主内容区只在其上方排布，避免关卡卡片被遮挡。
-    this.navH = Math.max(74, Math.min(90, Math.round(h * 0.135)))
-    this.navY = h - this.navH
+    // 导航按钮放大并与屏幕底边保持距离，避免图标和文字贴底。
+    const navBottomPad = Math.max(14, Math.min(20, Math.round(h * 0.035)))
+    const navTopPad = Math.max(4, Math.round(h * 0.008))
     const navSidePad = Math.max(12, Math.round(w * 0.035))
     const navGap = Math.max(8, Math.min(18, Math.round(w * 0.025)))
-    const navButtonSize = Math.max(58, Math.min(78, this.navH - 10, (w - navSidePad * 2 - navGap * 3) / NAV_ITEMS.length))
+    const availableButtonW = (w - navSidePad * 2 - navGap * 3) / NAV_ITEMS.length
+    const navButtonSize = Math.max(72, Math.min(96, Math.round(h * 0.23), availableButtonW))
+    this.navH = navTopPad + navButtonSize + navBottomPad
+    this.navY = h - this.navH
     const navTotalW = navButtonSize * NAV_ITEMS.length + navGap * (NAV_ITEMS.length - 1)
     const navStartX = (w - navTotalW) / 2
     this.navRects = NAV_ITEMS.map((item, i) => ({
       id: item.id,
       label: item.label,
       x: navStartX + i * (navButtonSize + navGap),
-      y: this.navY + (this.navH - navButtonSize) / 2,
+      y: this.navY + navTopPad,
       w: navButtonSize,
       h: navButtonSize
     }))
@@ -328,8 +330,10 @@ export class MainScene extends Scene {
     const panelX = (w - panelW) / 2
     const panelY = (h - panelH) / 2
     this.panelRect = { x: panelX, y: panelY, w: panelW, h: panelH }
-    this.panelBackRect = { x: panelX + 14, y: panelY + 12, w: 64, h: 34 }
-    this.panelCloseRect = { x: panelX + panelW - 48, y: panelY + 10, w: 36, h: 36 }
+    const closeH = Math.max(36, Math.min(40, Math.round(h * 0.065)))
+    const closeW = Math.max(72, Math.min(84, closeH * 2))
+    // 渲染和触摸命中共用同一个矩形，避免关闭按钮坐标偏移。
+    this.panelCloseRect = { x: panelX + panelW - closeW - 14, y: panelY + 10, w: closeW, h: closeH }
 
     ctx.save()
     ctx.fillStyle = 'rgba(2,3,6,0.78)'
@@ -357,20 +361,18 @@ export class MainScene extends Scene {
     ctx.lineTo(panelX + panelW - 16, panelY + 54)
     ctx.stroke()
 
-    const back = this.panelBackRect
-    ctx.fillStyle = '#e6d5a5'
-    ctx.font = 'bold 14px sans-serif'
-    ctx.textAlign = 'left'
-    ctx.fillText('‹ 返回', back.x + 4, back.y + back.h / 2)
     const close = this.panelCloseRect
+    this._roundRect(ctx, close.x, close.y, close.w, close.h, 7)
+    ctx.fillStyle = 'rgba(184,135,43,0.2)'
+    ctx.fill()
     ctx.strokeStyle = '#d8bd78'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(close.x + 9, close.y + 9)
-    ctx.lineTo(close.x + close.w - 9, close.y + close.h - 9)
-    ctx.moveTo(close.x + close.w - 9, close.y + 9)
-    ctx.lineTo(close.x + 9, close.y + close.h - 9)
+    ctx.lineWidth = 1.5
     ctx.stroke()
+    ctx.fillStyle = '#f4e4b7'
+    ctx.font = 'bold 15px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('关闭', close.x + close.w / 2, close.y + close.h / 2)
 
     if (this.panel === 'heroList') this._renderHeroListPanel(ctx)
     else if (this.panel === 'heroDetail') this._renderHeroDetailPanel(ctx)
@@ -751,11 +753,12 @@ export class MainScene extends Scene {
     ctx.font = `${Math.max(10, Math.round(this.topBarH * 0.15))}px sans-serif`
     ctx.fillText('乱世英豪', nicknameX, cy + avatarSize * 0.32, nicknameMaxW)
 
-    ctx.strokeStyle = 'rgba(222,182,85,0.42)'
-    ctx.lineWidth = 1
+    // 顶栏与主内容区的通栏分隔线。
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)'
+    ctx.lineWidth = 1.5
     ctx.beginPath()
-    ctx.moveTo(this.leftPad, this.topBarH - 1)
-    ctx.lineTo(w - this.leftPad, this.topBarH - 1)
+    ctx.moveTo(0, this.topBarY + this.topBarH - 0.75)
+    ctx.lineTo(w, this.topBarY + this.topBarH - 0.75)
     ctx.stroke()
   }
 
@@ -1009,7 +1012,7 @@ export class MainScene extends Scene {
     ctx.restore()
   }
 
-  // 方案 2 底部横排导航：图标资源未加载完成时显示暗金色占位块，并始终保留文字标签。
+  // 底部横排导航：按钮保持透明，只绘制图标和文字标签。
   _renderBottomNav(ctx) {
     const w = this.game.width
     const h = this.game.height
@@ -1029,31 +1032,13 @@ export class MainScene extends Scene {
 
     this.navRects.forEach(rect => {
       const active = NAV_PANEL[rect.id] === this.panel
-      const radius = Math.max(10, rect.w * 0.16)
-      const buttonGrad = ctx.createLinearGradient(0, rect.y, 0, rect.y + rect.h)
-      buttonGrad.addColorStop(0, active ? '#55431d' : '#292b32')
-      buttonGrad.addColorStop(1, active ? '#211a0c' : '#111319')
-      ctx.fillStyle = 'rgba(0,0,0,0.4)'
-      this._roundRect(ctx, rect.x + 1, rect.y + 3, rect.w, rect.h, radius)
-      ctx.fill()
-      ctx.fillStyle = buttonGrad
-      this._roundRect(ctx, rect.x, rect.y, rect.w, rect.h, radius)
-      ctx.fill()
-      ctx.strokeStyle = active ? '#e2bd58' : 'rgba(206,177,104,0.58)'
-      ctx.lineWidth = active ? 2 : 1
-      ctx.stroke()
-
-      const labelH = Math.max(18, rect.h * 0.27)
-      const iconSize = Math.max(26, Math.min(rect.w - 16, rect.h - labelH - 10))
+      const labelH = Math.max(20, rect.h * 0.25)
+      const iconSize = Math.max(38, Math.min(rect.w - 10, rect.h - labelH - 4))
       const iconX = rect.x + (rect.w - iconSize) / 2
-      const iconY = rect.y + 5
+      const iconY = rect.y
       const img = this.navImgs[rect.id]
       if (img) {
         ctx.drawImage(img, iconX, iconY, iconSize, iconSize)
-      } else {
-        ctx.fillStyle = active ? 'rgba(226,189,88,0.38)' : 'rgba(206,177,104,0.22)'
-        this._roundRect(ctx, iconX, iconY, iconSize, iconSize, Math.max(5, iconSize * 0.16))
-        ctx.fill()
       }
 
       ctx.fillStyle = active ? '#ffe49a' : '#e7d8ae'
@@ -1195,8 +1180,7 @@ export class MainScene extends Scene {
 
     // 面板命中优先于头像、导航和主屏内容，打开时完全暂停底层交互。
     if (this.panel) {
-      if ((this.panelBackRect && this.hitRect(x, y, this.panelBackRect.x, this.panelBackRect.y, this.panelBackRect.w, this.panelBackRect.h)) ||
-          (this.panelCloseRect && this.hitRect(x, y, this.panelCloseRect.x, this.panelCloseRect.y, this.panelCloseRect.w, this.panelCloseRect.h))) {
+      if (this.panelCloseRect && this.hitRect(x, y, this.panelCloseRect.x, this.panelCloseRect.y, this.panelCloseRect.w, this.panelCloseRect.h)) {
         this._closePanel()
         return
       }
