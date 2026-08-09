@@ -1481,7 +1481,8 @@ export class HomeScene extends Scene {
       let target = null
       this.monsters.forEach(m => {
         if (m.state !== 'walking') return
-        if (this._cellDistToMonster(entry, m) > range) return
+        const isBoss = m.type === 'zhangjiao' || m.type === 'dongzhuo' || m.type === 'lvbu'
+        if (this._cellDistToMonster(entry, m, !isBoss) > range) return
         if (!target || m.x < target.x) target = m
       })
 
@@ -2321,7 +2322,11 @@ export class HomeScene extends Scene {
   // 判断该武将攻击范围内是否有存活的行进中怪物，用于决定是否播放赵云的攻击帧循环
   _hasTargetInRange(entry) {
     const range = HERO_STATS[entry.heroId].attackRange
-    return this.monsters.some(m => m.state === 'walking' && this._cellDistToMonster(entry, m) <= range)
+    return this.monsters.some(m => {
+      if (m.state !== 'walking') return false
+      const isBoss = m.type === 'zhangjiao' || m.type === 'dongzhuo' || m.type === 'lvbu'
+      return this._cellDistToMonster(entry, m, !isBoss) <= range
+    })
   }
 
   // 该武将攻击动作单轮播完所需时长：帧数 /（基础帧率 × 等级攻速倍率），
@@ -2686,7 +2691,7 @@ export class HomeScene extends Scene {
       }
 
       if (img) {
-        const bossScale = (m.type === 'zhangjiao' || m.type === 'dongzhuo' || m.type === 'lvbu') ? 2 : 1
+        const bossScale = (m.type === 'zhangjiao' || m.type === 'dongzhuo' || m.type === 'lvbu') ? 3 : 1
         const targetH = cell * 1.0 * bossScale
         let dscale = targetH / img.height
         let dw = img.width * dscale
