@@ -30,10 +30,10 @@ const HERO_RARITY_COLOR = {
 // 诸葛亮：血量少、攻击力高、射程远（4 格）、攻速慢
 // 刘备：血量高、加血少、治疗范围覆盖周边 3 格、施法慢
 const HERO_STATS = {
-  guanyu: { maxHp: 200, damage: 20, attackRange: 0.8, attackCooldown: 1.8, animFps: 7 },
-  zhangfei: { maxHp: 120, damage: 10, attackRange: 2, attackCooldown: 1.6, animFps: 8 },
-  zhaoyun: { maxHp: 120, damage: 10, attackRange: 2, attackCooldown: 0.6, animFps: 14 },
-  zhugeliang: { maxHp: 100, damage: 50, attackRange: 4, attackCooldown: 2.0, animFps: 7 },
+  guanyu: { maxHp: 200, damage: 40, attackRange: 0.8, attackCooldown: 1.8, animFps: 7 },
+  zhangfei: { maxHp: 120, damage: 20, attackRange: 2, attackCooldown: 1.6, animFps: 8 },
+  zhaoyun: { maxHp: 120, damage: 20, attackRange: 2, attackCooldown: 0.6, animFps: 14 },
+  zhugeliang: { maxHp: 100, damage: 100, attackRange: 4, attackCooldown: 2.0, animFps: 7 },
   liubei: { maxHp: 300, damage: 0, attackRange: 0, attackCooldown: 2.0, animFps: 7, healAmount: 10, healRange: 3 }
 }
 
@@ -43,7 +43,7 @@ const AOE_MELEE_HEROES = ['guanyu', 'zhaoyun', 'zhangfei']
 // 通用武将 LV1-5 按 round(基础值 × 1.6^(等级-1))；LV6 起从 LV5 结果继续逐级 ×1.6。
 // 关羽 LV1-5 使用单独给定的数值表，之后同样从 LV5 表值继续递推。
 const HERO_LEVEL_MULTIPLIER = 1.6
-const GUANYU_DAMAGE_BY_LEVEL = [20, 38, 61, 98, 157]
+const GUANYU_DAMAGE_BY_LEVEL = [40, 76, 122, 196, 314]
 const GUANYU_HP_BY_LEVEL = [200, 320, 512, 820, 1312]
 // 所有武将共用攻速等级表；LV6 起保持 LV5 的 +50%。
 const HERO_ATTACK_SPEED_BONUS_BY_LEVEL = [0, 0.10, 0.20, 0.30, 0.50]
