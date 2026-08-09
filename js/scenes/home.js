@@ -4,6 +4,17 @@ import { getLocalAssetPath } from '../config.js'
 
 const HERO_NAMES = ['guanyu', 'liubei', 'zhangfei', 'zhaoyun', 'zhugeliang']
 
+// 战斗技能栏固定顺序，以及每关一次技能的 30 秒冷却反馈。
+const SKILL_HERO_IDS = ['zhaoyun', 'zhugeliang', 'zhangfei', 'guanyu', 'liubei']
+const SKILL_COOLDOWN = 30
+const SKILL_NAMES = {
+  zhaoyun: '龙胆神速',
+  zhugeliang: '八阵天火',
+  zhangfei: '当阳怒吼',
+  guanyu: '青龙偃月',
+  liubei: '仁德济世'
+}
+
 const HERO_CN_NAME = {
   guanyu: '关羽',
   liubei: '刘备',
@@ -256,7 +267,7 @@ export class HomeScene extends Scene {
     }
     this.lawnY = this.topMargin + 4
 
-    // 3 张卡 + 2 个 20px 间隔 + 刷新按钮（0.75 张卡宽）+ 两侧 14px 内边距，始终收在描金卡槽内。
+    // 先按原布局计算卡牌，再缩小到约 80%，给右侧的五技能栏腾出空间。
     this.cardW = Math.max(40, Math.min(104, (this.lawnW - 68) / 3.75))
     this.cardH = this.cardW * 1.15
     this.stripY = this.lawnY + this.lawnH + 6
@@ -266,11 +277,14 @@ export class HomeScene extends Scene {
       this.cardH = Math.max(40, this.stripH - 8)
       this.cardW = this.cardH / 1.15
     }
+    this.cardW *= 0.8
+    this.cardH *= 0.8
 
     this.imgs = {}
     this.stoneImg = null
     this._stoneReady = false
     this.heroImgs = {}
+    this.skillImgs = {}
     this.zyImgs = {}
     this.gyImgs = {}
     this.zfImgs = {}
@@ -310,6 +324,7 @@ export class HomeScene extends Scene {
     this.avatarImg = null
     this._loadAvatar()
     this._loadImages()
+    this._loadSkillImages()
     this._loadZhaoyunFrames()
     this._loadGuanyuFrames()
     this._loadZhangfeiFrames()
@@ -355,6 +370,13 @@ export class HomeScene extends Scene {
     this.bossSpawned = false
     this.lastAtkT = {} // key: `${heroId}_${r}_${c}` -> last attack time
     this.fx = [] // [{ x, y, t, dur, kind, text }]
+    // 每关创建新场景并在此重置：用过后即使 30 秒倒计时结束，本关仍不可再次释放。
+    this.skillStates = {}
+    SKILL_HERO_IDS.forEach(heroId => {
+      this.skillStates[heroId] = { used: false, cdT: 0, flashT: 0 }
+    })
+    this.skillRects = []
+    this.skillHeal = null
     this.goldPop = 0
     this.projectiles = [] // kind: 'magic'（诸葛亮法球）或 'arrow'（弓箭手箭矢）
     this.projectileIdSeq = 0
@@ -514,18 +536,28 @@ export class HomeScene extends Scene {
   _layoutButtons() {
     const pad = 14
     const slotX = this.lawnX
-    const slotW = this.lawnW
-
-    const btnSize = this.cardW * 0.75
+    // 底栏延伸到屏幕右边；左侧是缩小后的手牌，右侧依次放刷新与五个英雄技能。
+    const slotW = this.game.width - slotX - 10
+    const cardGap = 8
+    const cardsW = this.cardW * 3 + cardGap * 2
+    const btnSize = this.cardW * 0.62
+    const skillGap = 6
+    const skillStartX = slotX + pad + cardsW + 10 + btnSize + 12
+    const skillRoom = slotX + slotW - pad - skillStartX
+    const skillSize = Math.max(22, Math.min(this.cardW, this.stripH - 12, (skillRoom - skillGap * 4) / 5))
     this.slotX = slotX
     this.slotW = slotW
+    this.cardGap = cardGap
     this.cardsGroupX = slotX + pad
     this.refreshBtn = {
-      x: slotX + slotW - pad - btnSize,
+      x: slotX + pad + cardsW + 10,
       y: this.stripY + this.stripH / 2 - btnSize / 2,
       w: btnSize,
       h: btnSize
     }
+    this.skillSize = skillSize
+    this.skillGap = skillGap
+    this.skillGroupX = skillStartX
   }
 
   // 左上角头像：优先取用户头像（tt.getUserInfo），失败或无授权时回退到关羽立绘
@@ -587,6 +619,17 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.heroImgs[key] = img; finish() }
       img.onerror = () => { console.error('[Home] 武将头像加载失败:', key, path); finish() }
+      getLocalAssetPath(path).then(localPath => { img.src = localPath })
+    })
+  }
+
+  // 技能图片独立异步加载；云端素材尚未就绪或加载失败时，渲染函数会显示品质色占位图标。
+  _loadSkillImages() {
+    SKILL_HERO_IDS.forEach(heroId => {
+      const path = `assets/skills/skill_${heroId}.png`
+      const img = tt.createImage()
+      img.onload = () => { this.skillImgs[heroId] = img }
+      img.onerror = () => { console.error('[Home] 技能图标加载失败:', heroId, path) }
       getLocalAssetPath(path).then(localPath => { img.src = localPath })
     })
   }
@@ -942,6 +985,7 @@ export class HomeScene extends Scene {
 
     if (!this.gameOver && !this.levelCleared) {
       this.battleTime = Math.min(BATTLE_TIME_LIMIT, this.battleTime + sdt)
+      this._updateSkills(sdt)
       this._updateMonsterSpawn(sdt)
       this._updateMonsters(sdt)
       this._updateAttacks(sdt)
@@ -952,6 +996,104 @@ export class HomeScene extends Scene {
       this._checkGameOver()
       this._checkLevelCleared()
     }
+  }
+
+  // 技能冷却、赵云攻速增益和刘备持续治疗都使用战斗时间，因此会与战斗倍速同步。
+  _updateSkills(dt) {
+    SKILL_HERO_IDS.forEach(heroId => {
+      const state = this.skillStates[heroId]
+      if (state.cdT > 0) state.cdT = Math.max(0, state.cdT - dt)
+      if (state.flashT > 0) state.flashT = Math.max(0, state.flashT - dt)
+    })
+
+    this.deployed.forEach(entry => {
+      if (entry.speedBuffT > 0) entry.speedBuffT = Math.max(0, entry.speedBuffT - dt)
+    })
+
+    if (!this.skillHeal) return
+    this.skillHeal.tickT -= dt
+    while (this.skillHeal && this.skillHeal.tickT <= 0 && this.skillHeal.ticksLeft > 0) {
+      this._applySkillHeal(this.skillHeal.amount)
+      this.skillHeal.ticksLeft -= 1
+      this.skillHeal.tickT += 1
+      if (this.skillHeal.ticksLeft <= 0) this.skillHeal = null
+    }
+  }
+
+  _applySkillHeal(amount) {
+    this.deployed.forEach(entry => {
+      if (entry.dying || entry.hp >= entry.maxHp) return
+      const healed = Math.min(amount, entry.maxHp - entry.hp)
+      entry.hp += healed
+      const rect = this._cellRect(entry.r, entry.c)
+      this.fx.push({ x: rect.x + rect.w / 2, y: rect.y + rect.h * 0.3, t: 0, dur: DMG_TEXT_DUR, kind: 'dmg', text: `+${healed}`, color: '#4caf50' })
+      this.fx.push({ entry, t: 0, dur: 0.5, kind: 'heal' })
+    })
+  }
+
+  // 返回场上该武将的最高等级实例；阵亡淡出中的实例不再视为可用英雄。
+  _highestDeployedHero(heroId) {
+    let best = null
+    this.deployed.forEach(entry => {
+      if (entry.heroId !== heroId || entry.dying) return
+      if (!best || entry.level > best.level) best = entry
+    })
+    return best
+  }
+
+  _castHeroSkill(heroId) {
+    const state = this.skillStates[heroId]
+    const source = this._highestDeployedHero(heroId)
+    if (!state || state.used || state.cdT > 0 || !source) return false
+
+    const level = Math.max(1, source.level || 1)
+    state.used = true
+    state.cdT = SKILL_COOLDOWN
+    state.flashT = 0.6
+
+    if (heroId === 'zhaoyun') {
+      const duration = 3 + (level - 1)
+      this.deployed.forEach(entry => {
+        if (entry.heroId === heroId && !entry.dying) entry.speedBuffT = duration
+      })
+    } else if (heroId === 'zhugeliang') {
+      const damage = this._heroDamage(heroId, level)
+      this.monsters.slice().forEach(m => {
+        if (m.state !== 'walking' || m.dead) return
+        const fxY = this.lawnY + m.r * this.cell + this.cell * 0.5
+        this._applyHeroDamageToMonster(m, damage, fxY)
+      })
+    } else if (heroId === 'zhangfei') {
+      const duration = 3 + (level - 1) * 0.5
+      this.monsters.forEach(m => {
+        if (m.state === 'walking' && !m.dead) m.stunT = Math.max(m.stunT || 0, duration)
+      })
+    } else if (heroId === 'guanyu') {
+      const damage = this._heroDamage(heroId, level) * level
+      this.monsters.slice().forEach(m => {
+        if (m.state !== 'walking' || m.dead || m.r !== source.r) return
+        const fxY = this.lawnY + m.r * this.cell + this.cell * 0.5
+        this._applyHeroDamageToMonster(m, damage, fxY)
+      })
+    } else if (heroId === 'liubei') {
+      const duration = 1 + (level - 1)
+      this.skillHeal = {
+        amount: this._heroMaxHp(heroId, level),
+        ticksLeft: duration,
+        tickT: 1
+      }
+    }
+
+    this.fx.push({
+      x: this.lawnX + this.lawnW / 2,
+      y: this.lawnY + this.lawnH / 2,
+      t: 0,
+      dur: 1,
+      kind: 'skillCast',
+      text: `${HERO_CN_NAME[heroId]}·${SKILL_NAMES[heroId]}`,
+      color: HERO_RARITY_COLOR[heroId] || '#ffd76a'
+    })
+    return true
   }
 
   _updateMonsterSpawn(dt) {
@@ -1239,7 +1381,7 @@ export class HomeScene extends Scene {
       const key = `${entry.heroId}_${entry.r}_${entry.c}`
       const last = this.lastAtkT[key] || -Infinity
       // 基础冷却值不变；实际攻击间隔、动作帧率和命中时点统一应用当前等级攻速加成。
-      if (now - last < this._attackRequiredGap(entry.heroId, entry.level)) return
+      if (now - last < this._attackRequiredGap(entry.heroId, entry.level, entry)) return
 
       const range = HERO_STATS[entry.heroId].attackRange
       let target = null
@@ -1315,7 +1457,7 @@ export class HomeScene extends Scene {
       if (entry.heroId !== 'liubei') return
       const key = `${entry.heroId}_${entry.r}_${entry.c}`
       const last = this.lastAtkT[key] || -Infinity
-      if (now - last < this._attackRequiredGap(entry.heroId, entry.level)) return
+      if (now - last < this._attackRequiredGap(entry.heroId, entry.level, entry)) return
 
       const target = this._findHealTarget(entry)
       if (!target) return
@@ -1669,6 +1811,7 @@ export class HomeScene extends Scene {
     this._renderCardSlot(ctx)
     this._renderHeroRow(ctx)
     this._renderRefreshButton(ctx)
+    this._renderSkillBar(ctx)
     this._renderPullEffect(ctx)
     this._renderDragGhost(ctx)
     this._renderGameOver(ctx)
@@ -2069,9 +2212,12 @@ export class HomeScene extends Scene {
   }
 
   // 两次攻击之间的最小间隔：基础冷却与加速后动作时长 + 后摇取较大值，再整体应用等级攻速倍率。
-  _attackRequiredGap(heroId, level = 1) {
+  _attackRequiredGap(heroId, level = 1, entry = null) {
     const bonus = this._heroAttackSpeedBonus(level)
-    return Math.max(HERO_STATS[heroId].attackCooldown, this._attackAnimPlayDur(heroId, level) + ATTACK_RECOVERY_PAUSE) / (1 + bonus)
+    let gap = Math.max(HERO_STATS[heroId].attackCooldown, this._attackAnimPlayDur(heroId, level) + ATTACK_RECOVERY_PAUSE) / (1 + bonus)
+    // 赵云技能只额外缩短攻击间隔，不改数值表；技能持续期间间隔再除以 2。
+    if (heroId === 'zhaoyun' && entry && entry.speedBuffT > 0) gap /= 2
+    return gap
   }
 
   // 当前是否正处于攻击动画播放窗口内（从触发时刻起算，动作播完即结束，不含后摇）。
@@ -2599,7 +2745,19 @@ export class HomeScene extends Scene {
     this.fx.forEach(f => {
       const progress = f.t / f.dur
       const alpha = Math.max(0, 1 - progress)
-      if (f.kind === 'slash') {
+      if (f.kind === 'skillCast') {
+        ctx.save()
+        ctx.globalAlpha = alpha * 0.22
+        ctx.fillStyle = f.color || '#ffd76a'
+        ctx.fillRect(0, 0, this.game.width, this.game.height)
+        ctx.globalAlpha = alpha
+        ctx.fillStyle = f.color || '#ffd76a'
+        ctx.font = `bold ${Math.round(this.cell * 0.42)}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(f.text, f.x, f.y - progress * this.cell * 0.45)
+        ctx.restore()
+      } else if (f.kind === 'slash') {
         ctx.save()
         ctx.globalAlpha = alpha
         ctx.strokeStyle = f.color || '#ffe9a8'
@@ -3018,7 +3176,7 @@ export class HomeScene extends Scene {
 
     const { cardW, cardH, stripY, stripH, hand } = this
     const cardY = stripY + (stripH - cardH) / 2
-    const gap = 20
+    const gap = this.cardGap
     let x = this.cardsGroupX
     this.cardRects = []
 
@@ -3028,6 +3186,71 @@ export class HomeScene extends Scene {
       this._renderHeroCard(ctx, card.heroId, x, cardY, cardW, cardH, { selected, level: card.level })
       this.cardRects.push({ id: card.heroId, index, x, y: cardY, w: cardW, h: cardH })
       x += cardW + gap
+    })
+  }
+
+  _renderSkillBar(ctx) {
+    const size = this.skillSize
+    const y = this.stripY + (this.stripH - size) / 2
+    this.skillRects = []
+
+    SKILL_HERO_IDS.forEach((heroId, index) => {
+      const x = this.skillGroupX + index * (size + this.skillGap)
+      const state = this.skillStates[heroId]
+      const deployed = !!this._highestDeployedHero(heroId)
+      const disabled = !deployed || state.used || state.cdT > 0
+      const img = this.skillImgs[heroId]
+      const radius = Math.max(5, size * 0.16)
+
+      ctx.save()
+      if (state.flashT > 0) {
+        ctx.shadowColor = HERO_RARITY_COLOR[heroId] || '#ffd76a'
+        ctx.shadowBlur = size * (0.18 + state.flashT * 0.35)
+      }
+      ctx.fillStyle = '#171a22'
+      this._roundRect(ctx, x, y, size, size, radius)
+      ctx.fill()
+      ctx.save()
+      this._roundRect(ctx, x + 2, y + 2, size - 4, size - 4, Math.max(3, radius - 2))
+      ctx.clip()
+      if (img) {
+        ctx.drawImage(img, x + 2, y + 2, size - 4, size - 4)
+      } else {
+        ctx.fillStyle = HERO_RARITY_COLOR[heroId] || '#555b66'
+        ctx.fillRect(x + 2, y + 2, size - 4, size - 4)
+        ctx.fillStyle = '#fff3c4'
+        ctx.font = `bold ${Math.max(11, Math.round(size * 0.36))}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(HERO_CN_NAME[heroId].slice(0, 1), x + size / 2, y + size / 2)
+      }
+      ctx.restore()
+
+      if (disabled) {
+        ctx.fillStyle = 'rgba(25,27,32,0.68)'
+        this._roundRect(ctx, x + 2, y + 2, size - 4, size - 4, Math.max(3, radius - 2))
+        ctx.fill()
+      }
+      ctx.strokeStyle = disabled ? '#686b72' : (HERO_RARITY_COLOR[heroId] || '#ffd76a')
+      ctx.lineWidth = 2
+      this._roundRect(ctx, x, y, size, size, radius)
+      ctx.stroke()
+
+      if (state.cdT > 0) {
+        ctx.fillStyle = '#ffffff'
+        ctx.font = `bold ${Math.max(12, Math.round(size * 0.33))}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(String(Math.ceil(state.cdT)), x + size / 2, y + size / 2)
+      } else if (state.used) {
+        ctx.fillStyle = '#e0e0e0'
+        ctx.font = `bold ${Math.max(8, Math.round(size * 0.2))}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('已用', x + size / 2, y + size / 2)
+      }
+      ctx.restore()
+      this.skillRects.push({ heroId, x, y, w: size, h: size })
     })
   }
 
@@ -3106,7 +3329,7 @@ export class HomeScene extends Scene {
     if (p.phase === 'flip' || p.phase === 'done') {
       const { cardW, cardH, stripY, stripH, hand } = this
       const cardY = stripY + (stripH - cardH) / 2
-      const gap = 20
+      const gap = this.cardGap
       let x = this.cardsGroupX
       this.cardRects = []
 
@@ -3173,6 +3396,14 @@ export class HomeScene extends Scene {
         this.game.switch('main')
       }
       return
+    }
+
+    for (let i = 0; i < this.skillRects.length; i++) {
+      const rect = this.skillRects[i]
+      if (this._hitRect(rect, x, y)) {
+        this._castHeroSkill(rect.heroId)
+        return
+      }
     }
 
     if (this.pull) return
