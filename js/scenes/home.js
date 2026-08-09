@@ -1,6 +1,6 @@
 import { Scene } from './scene.js'
 import { playAttack, playBattleBg, playHit, stopBattleBg, stopMainBg } from '../audio.js'
-import { getLocalAssetPath } from '../config.js'
+import { getLocalAssetPath, assetUrl } from '../config.js'
 
 const HERO_NAMES = ['guanyu', 'liubei', 'zhangfei', 'zhaoyun', 'zhugeliang']
 
@@ -657,7 +657,7 @@ export class HomeScene extends Scene {
       const img = tt.createImage()
       img.onload = () => { this.skillImgs[heroId] = img }
       img.onerror = () => { console.error('[Home] 技能图标加载失败:', heroId, path) }
-      getLocalAssetPath(path).then(localPath => { img.src = localPath })
+      img.src = assetUrl(path)
     })
   }
 
