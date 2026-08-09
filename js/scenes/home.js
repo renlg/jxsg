@@ -380,7 +380,7 @@ export class HomeScene extends Scene {
     })
     this.skillRects = []
     this.skillHeal = null
-    // 需要二次点击草坪确认目标的技能；张飞、赵云仍由技能按钮直接释放。
+    // 需要二次点击草坪或右侧泥土地确认目标的技能；张飞、赵云仍由技能按钮直接释放。
     this.pendingSkillTarget = null
     this.goldPop = 0
     this.projectiles = [] // kind: 'magic'（诸葛亮法球）或 'arrow'（弓箭手箭矢）
@@ -1086,7 +1086,8 @@ export class HomeScene extends Scene {
     if (!state || state.used || state.cdT > 0 || !source) return false
 
     const needsTarget = heroId === 'guanyu' || heroId === 'zhugeliang' || heroId === 'liubei'
-    if (needsTarget && (!target || target.r < 0 || target.r >= this.rows || target.c < 0 || target.c >= this.cols)) {
+    // 行必须落在战场三行内；列使用从草坪向右按 cell 延伸的虚拟列，不受草坪列数限制。
+    if (needsTarget && (!target || !Number.isFinite(target.r) || target.r < 0 || target.r >= this.rows || !Number.isFinite(target.c))) {
       return false
     }
 
@@ -1150,13 +1151,13 @@ export class HomeScene extends Scene {
     return true
   }
 
-  // 关羽显示整行范围；诸葛亮、刘备显示以目标格为中心并截断到草坪内的 3×3 范围。
+  // 关羽显示草地+泥土地整行范围；诸葛亮、刘备按虚拟列显示以目标格为中心的 3×3 范围。
   _pushSkillAreaFx(r, c, wholeRow, color) {
     this.fx.push({
       r1: wholeRow ? r : Math.max(0, r - 1),
       r2: wholeRow ? r : Math.min(this.rows - 1, r + 1),
-      c1: wholeRow ? 0 : Math.max(0, c - 1),
-      c2: wholeRow ? this.cols - 1 : Math.min(this.cols - 1, c + 1),
+      c1: wholeRow ? 0 : c - 1,
+      c2: wholeRow ? Math.ceil((this.game.width - this.lawnX) / this.cell) - 1 : c + 1,
       t: 0,
       dur: 0.65,
       kind: 'skillArea',
@@ -1952,30 +1953,32 @@ export class HomeScene extends Scene {
     ctx.restore()
   }
 
-  // 选目标时给草坪明确提示：关羽的三行均可选；格子技能在点击后由 skillArea 特效确认 3×3 范围。
+  // 选目标时给草地和泥土地明确提示；格子技能在点击后由 skillArea 特效确认虚拟列上的 3×3 范围。
   _renderSkillTargetOverlay(ctx) {
     if (!this.pendingSkillTarget) return
 
+    const targetAreaW = Math.max(0, this.game.width - this.lawnX)
     ctx.save()
     if (this.pendingSkillTarget === 'guanyu') {
       for (let r = 0; r < this.rows; r++) {
         const rect = this._cellRect(r, 0)
         ctx.fillStyle = r % 2 === 0 ? 'rgba(255,118,92,0.16)' : 'rgba(255,184,92,0.13)'
-        ctx.fillRect(this.lawnX, rect.y, this.lawnW, this.cell)
+        ctx.fillRect(this.lawnX, rect.y, targetAreaW, this.cell)
         ctx.strokeStyle = 'rgba(255,225,150,0.72)'
         ctx.lineWidth = 2
-        ctx.strokeRect(this.lawnX + 1, rect.y + 1, this.lawnW - 2, this.cell - 2)
+        ctx.strokeRect(this.lawnX + 1, rect.y + 1, Math.max(0, targetAreaW - 2), this.cell - 2)
       }
     } else {
-      // 未确认中心格前轻描所有可点格；按下后立即以范围特效显示实际截断后的 3×3。
+      // 未确认中心格前轻描所有可点虚拟格；按下后立即以范围特效显示实际 3×3。
       ctx.fillStyle = 'rgba(80,220,190,0.1)'
-      ctx.fillRect(this.lawnX, this.lawnY, this.lawnW, this.lawnH)
+      ctx.fillRect(this.lawnX, this.lawnY, targetAreaW, this.lawnH)
       ctx.strokeStyle = 'rgba(190,255,230,0.42)'
       ctx.lineWidth = 1
       for (let r = 0; r < this.rows; r++) {
-        for (let c = 0; c < this.cols; c++) {
+        for (let c = 0; this.lawnX + c * this.cell < this.game.width; c++) {
           const rect = this._cellRect(r, c)
-          ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
+          const visibleW = Math.min(rect.w, this.game.width - rect.x)
+          ctx.strokeRect(rect.x + 1, rect.y + 1, Math.max(0, visibleW - 2), rect.h - 2)
         }
       }
     }
@@ -2857,9 +2860,12 @@ export class HomeScene extends Scene {
         ctx.fillText(f.text, f.x, f.y - progress * this.cell * 0.45)
         ctx.restore()
       } else if (f.kind === 'skillArea') {
-        const x = this.lawnX + f.c1 * this.cell
+        const rawX = this.lawnX + f.c1 * this.cell
+        const rawRight = this.lawnX + (f.c2 + 1) * this.cell
+        const x = Math.max(this.lawnX, rawX)
+        const right = Math.min(this.game.width, rawRight)
         const y = this.lawnY + f.r1 * this.cell
-        const w = (f.c2 - f.c1 + 1) * this.cell
+        const w = Math.max(0, right - x)
         const h = (f.r2 - f.r1 + 1) * this.cell
         ctx.save()
         ctx.globalAlpha = alpha
@@ -3582,11 +3588,11 @@ export class HomeScene extends Scene {
       }
     }
 
-    const inSkillLawn = x >= this.lawnX && x < this.lawnX + this.lawnW &&
+    const inSkillTargetArea = x >= this.lawnX &&
       y >= this.lawnY && y < this.lawnY + this.lawnH
     if (this.pendingSkillTarget) {
-      if (inSkillLawn) {
-        // 技能目标允许选择第 0 列石头格；它只作为范围中心，不参与部署规则。
+      if (inSkillTargetArea) {
+        // 第 0 列石头格和草坪右侧泥土地虚拟列都可作为技能范围中心，不参与部署规则。
         const target = {
           c: Math.floor((x - this.lawnX) / this.cell),
           r: Math.floor((y - this.lawnY) / this.cell)
