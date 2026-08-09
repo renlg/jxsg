@@ -300,8 +300,8 @@ export class HomeScene extends Scene {
     this.monsterSpeed = 30 * (1 + 0.05 * (this.level - 1))
     const spawnInterval = Math.max(MONSTER_SPAWN_INTERVAL_MIN, MONSTER_SPAWN_INTERVAL_BASE - MONSTER_SPAWN_INTERVAL_STEP * (this.level - 1))
     this.monsterSpawnQueue = this._buildMonsterSpawnQueue()
-    // 出怪纯时间驱动，180 秒内按固定间隔出完全部怪（含 BOSS），不等待玩家清怪。
-    const spawnDeadline = BATTLE_TIME_LIMIT
+    // 扣除前两个 10 秒空窗后，可出怪时长为 148.5 秒；确保全部小怪在 170 秒空窗前出完。
+    const spawnDeadline = 150
     const queueInterval = this.monsterSpawnQueue
       ? (spawnDeadline - MONSTER_SPAWN_FIRST) / this.monsterSpawnQueue.length
       : spawnInterval
@@ -955,15 +955,20 @@ export class HomeScene extends Scene {
   }
 
   _updateMonsterSpawn(dt) {
-    if (this.battleTime >= BATTLE_TIME_LIMIT) return
-
-    const bossType = this.level === 15 ? 'lvbu' : null
-    if (bossType && !this.bossSpawned && this.battleTime >= BATTLE_TIME_LIMIT - 20) {
-      this._spawnMonster(bossType, this.level)
-      this.bossSpawned = true
+    if (this.battleTime >= BATTLE_TIME_LIMIT) {
+      // 180 秒后，本关 BOSS（如有）单独出场。
+      const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : this.level === 15 ? 'lvbu' : null
+      if (bossType && !this.bossSpawned) {
+        this._spawnMonster(bossType, this.level)
+        this.bossSpawned = true
+      }
       return
     }
-    if (this.bossSpawned) return
+
+    // 三个 10 秒空窗暂停计时，不出怪也不在空窗结束后补怪。
+    const t = this.battleTime
+    const inGap = (t >= 50 && t < 60) || (t >= 110 && t < 120) || (t >= 170 && t < 180)
+    if (inGap) return
 
     this.monsterSpawnT -= dt
     const queueActive = this.monsterSpawnQueue && this.monsterSpawnQueue.length > 0
@@ -975,7 +980,6 @@ export class HomeScene extends Scene {
           break
         }
         this._spawnMonster(nextMonster.type, nextMonster.level)
-        if (nextMonster.type === 'zhangjiao' || nextMonster.type === 'dongzhuo') this.bossSpawned = true
         this.monsterSpawnT += this.monsterSpawnInterval
         continue
       }
@@ -1001,8 +1005,6 @@ export class HomeScene extends Scene {
         for (let i = 0; i < group.count; i++) queue.push({ type, level: group.lv })
       })
     })
-    if (this.level === 5) queue.push({ type: 'zhangjiao', level: this.level })
-    if (this.level === 10) queue.push({ type: 'dongzhuo', level: this.level })
     return queue
   }
 
