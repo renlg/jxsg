@@ -1258,9 +1258,19 @@ export class HomeScene extends Scene {
 
       target.attacking = true
       target.attackT = ATTACK_ANIM_DUR
+      // 关羽群攻：主目标100%，范围内其他目标30%。起手时锁定溅射目标，命中时分别判定是否仍可受击。
+      let splashTargets = null
+      if (entry.heroId === 'guanyu') {
+        splashTargets = []
+        this.monsters.forEach(m => {
+          if (m === target || m.state !== 'walking') return
+          if (this._cellDistToMonster(entry, m) > range) return
+          splashTargets.push(m)
+        })
+      }
       // 近战伤害不在起手瞬间结算，而是等该武将挥砍动作播完（_attackAnimPlayDur，动作结束的一刻）才扣血——
       // 之后的 ATTACK_RECOVERY_PAUSE 只是保持收势姿态的视觉停顿，不再延后伤害
-      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId, entry.level), kind: 'heroMelee', heroEntry: entry, target, dmg: entry.damage, resolved: false })
+      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId, entry.level), kind: 'heroMelee', heroEntry: entry, target, splashTargets, dmg: entry.damage, resolved: false })
     })
   }
 
@@ -1363,24 +1373,37 @@ export class HomeScene extends Scene {
     this.fx.push({ entry: target, t: 0, dur: 0.5, kind: 'heal' })
   }
 
-  // 武将挥砍命中：目标此时仍存活行进中才结算，避免动画播放期间目标已被其他来源击杀而重复处理
-  _resolveHeroMeleeHit(hit) {
-    const target = hit.target
-    if (!target || target.dead || target.state !== 'walking') return
-    target.hp -= hit.dmg
+  // 统一处理武将对单只怪物的伤害、受击表现与死亡奖励。
+  _applyHeroDamageToMonster(target, dmg, fxY) {
+    target.hp -= dmg
     target.hitT = HIT_FLASH_DUR
-    const fxY = this.lawnY + hit.heroEntry.r * this.cell + this.cell * 0.5
     this.fx.push({ x: target.x, y: fxY, t: 0, dur: 0.25, kind: 'slash' })
-    this.fx.push({ x: target.x, y: fxY, t: 0, dur: DMG_TEXT_DUR, kind: 'dmg', text: `-${hit.dmg}` })
-    // 张飞每次命中有 STUN_PROC_CHANCE（10%）概率使目标眩晕 STUN_DURATION 秒：不能动、不能攻击，
-    // 头顶叠加眩晕特效（见 _renderMonsters 中 m.stunT 的渲染分支）
-    if (target.hp > 0 && hit.heroEntry.heroId === 'zhangfei' && Math.random() < STUN_PROC_CHANCE) {
-      target.stunT = STUN_DURATION
-    }
+    this.fx.push({ x: target.x, y: fxY, t: 0, dur: DMG_TEXT_DUR, kind: 'dmg', text: `-${dmg}` })
     if (target.hp <= 0) {
       target.state = 'dying'
       target.killT = DYING_DUR
       this._grantMonsterGold(target, target.x, fxY)
+    }
+  }
+
+  // 武将挥砍命中：关羽主目标100%伤害、起手时范围内其他目标30%伤害；各目标独立判定是否仍可受击。
+  _resolveHeroMeleeHit(hit) {
+    const target = hit.target
+    const fxY = this.lawnY + hit.heroEntry.r * this.cell + this.cell * 0.5
+    if (hit.heroEntry.heroId === 'guanyu' && hit.splashTargets) {
+      const splashDmg = Math.max(1, Math.round(hit.dmg * 0.3))
+      hit.splashTargets.forEach(m => {
+        if (!m || m.dead || m.state !== 'walking') return
+        this._applyHeroDamageToMonster(m, splashDmg, fxY)
+      })
+    }
+
+    if (!target || target.dead || target.state !== 'walking') return
+    this._applyHeroDamageToMonster(target, hit.dmg, fxY)
+    // 张飞每次命中有 STUN_PROC_CHANCE（10%）概率使目标眩晕 STUN_DURATION 秒：不能动、不能攻击，
+    // 头顶叠加眩晕特效（见 _renderMonsters 中 m.stunT 的渲染分支）
+    if (target.hp > 0 && hit.heroEntry.heroId === 'zhangfei' && Math.random() < STUN_PROC_CHANCE) {
+      target.stunT = STUN_DURATION
     }
   }
 
