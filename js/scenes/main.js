@@ -326,15 +326,15 @@ export class MainScene extends Scene {
 
     const w = this.game.width
     const h = this.game.height
-    const drawW = w * 0.36
+    const drawW = w * 0.28
     const drawH = drawW * 431 / 768
     const minCenterY = this.topBarH + drawH / 2 + 8
     const maxCenterY = this.navY - drawH / 2 - 8
     const centerY = Math.max(minCenterY, Math.min(h * 0.4, maxCenterY))
-    const leftCenterX = w * 0.32 + Math.sin(this.animT * 0.3) * 30
-    const rightCenterX = w * 0.68 + Math.sin(this.animT * 0.3 + 1.3) * 22
+    const leftCenterX = w * 0.34 + Math.sin(this.animT * 0.3) * 30
+    const rightCenterX = w * 0.66 + Math.sin(this.animT * 0.3 + 1.3) * 22
 
-    ctx.globalAlpha = 0.8
+    ctx.globalAlpha = 0.7
     ctx.drawImage(this.cloudImg, leftCenterX - drawW / 2, centerY - drawH / 2, drawW, drawH)
     if (this.cloudSubImg) ctx.drawImage(this.cloudSubImg, rightCenterX - drawW / 2, centerY - drawH / 2, drawW, drawH)
     ctx.globalAlpha = 1
