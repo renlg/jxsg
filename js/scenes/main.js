@@ -1025,7 +1025,7 @@ export class MainScene extends Scene {
     const firstLabelH = Math.max(20, firstRect.h * 0.25)
     const firstIconSize = Math.max(38, Math.min(firstRect.w - 10, firstRect.h - firstLabelH - 4))
     const firstIconY = firstRect.y
-    const dividerY = firstIconY + firstIconSize * 0.75
+    const dividerY = firstIconY + firstIconSize * 0.25
 
     ctx.save()
     const navGrad = ctx.createLinearGradient(0, dividerY, 0, h)
@@ -1034,6 +1034,14 @@ export class MainScene extends Scene {
     navGrad.addColorStop(1, 'rgba(15,17,24,0)')
     ctx.fillStyle = navGrad
     ctx.fillRect(0, dividerY, w, h - dividerY)
+
+    // 先绘制分隔线，再绘制图标和文字，使按钮内容覆盖在线之上。
+    ctx.strokeStyle = 'rgba(229,190,91,0.48)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(0, dividerY)
+    ctx.lineTo(w, dividerY)
+    ctx.stroke()
 
     this.navRects.forEach(rect => {
       const active = NAV_PANEL[rect.id] === this.panel
@@ -1052,14 +1060,6 @@ export class MainScene extends Scene {
       ctx.textBaseline = 'middle'
       ctx.fillText(rect.label, rect.x + rect.w / 2, rect.y + rect.h - labelH / 2)
     })
-
-    // 最后绘制分隔线，确保它清晰位于按钮图标自身高度的 3/4 处。
-    ctx.strokeStyle = 'rgba(229,190,91,0.48)'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(0, dividerY)
-    ctx.lineTo(w, dividerY)
-    ctx.stroke()
     ctx.restore()
   }
 
