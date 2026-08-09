@@ -72,12 +72,12 @@ export class MainScene extends Scene {
     this.cloudImg = null
     const cloud = tt.createImage()
     cloud.onload = () => { this.cloudImg = cloud }
-    cloud.src = assetUrl('assets/cloud_main.png?v=6')
+    cloud.src = assetUrl('assets/cloud_main.png?v=7')
 
     this.cloudSubImg = null
     const cloudSub = tt.createImage()
     cloudSub.onload = () => { this.cloudSubImg = cloudSub }
-    cloudSub.src = assetUrl('assets/cloud_sub.png?v=6')
+    cloudSub.src = assetUrl('assets/cloud_sub.png?v=7')
 
     // safeArea 固定按 0 处理；资源栏内容仍保留至少 30px 的横向安全边距。
     this.safeArea = 0
@@ -326,42 +326,17 @@ export class MainScene extends Scene {
 
     const w = this.game.width
     const h = this.game.height
-    const sourceW = this.cloudImg.width || 512
-    const sourceH = this.cloudImg.height || 512
-    const availableH = Math.max(1, this.navY - this.topBarH - 16)
-    const scale = Math.min(1, w * 0.4 / sourceW, availableH / sourceH)
-    const drawW = sourceW * scale
-    const drawH = sourceH * scale
+    const drawW = w * 0.36
+    const drawH = drawW * 431 / 768
     const minCenterY = this.topBarH + drawH / 2 + 8
     const maxCenterY = this.navY - drawH / 2 - 8
-    const centerY = Math.max(minCenterY, Math.min(h * 0.375, maxCenterY))
-    const offsetX = Math.sin(this.animT * 0.3) * 40
-    let centerX = Math.max(drawW / 2, Math.min(w * 0.34 + offsetX, w - drawW / 2))
+    const centerY = Math.max(minCenterY, Math.min(h * 0.4, maxCenterY))
+    const leftCenterX = w * 0.32 + Math.sin(this.animT * 0.3) * 30
+    const rightCenterX = w * 0.68 + Math.sin(this.animT * 0.3 + 1.3) * 22
 
     ctx.globalAlpha = 0.8
-    if (this.cloudSubImg) {
-      const subSourceW = this.cloudSubImg.width || 512
-      const subSourceH = this.cloudSubImg.height || 512
-      const subScale = Math.min(1, w * 0.26 / subSourceW, availableH / subSourceH)
-      const subDrawW = subSourceW * subScale
-      const subDrawH = subDrawW * subSourceH / subSourceW
-      const subMinCenterY = this.topBarH + subDrawH / 2 + 8
-      const subMaxCenterY = this.navY - subDrawH / 2 - 8
-      const subCenterY = Math.max(subMinCenterY, Math.min(h * 0.4, subMaxCenterY))
-      const subOffsetX = Math.sin(this.animT * 0.3 + 1.3) * 30
-      const desiredSubCenterX = Math.max(subDrawW / 2, Math.min(w * 0.72 + subOffsetX, w - subDrawW / 2))
-      const cloudGap = Math.max(4, w * 0.01)
-      const minSubCenterX = centerX + drawW / 2 + subDrawW / 2 + cloudGap
-      const subCenterX = Math.min(w - subDrawW / 2, Math.max(desiredSubCenterX, minSubCenterX))
-      if (subCenterX < minSubCenterX) {
-        centerX = Math.max(drawW / 2, subCenterX - subDrawW / 2 - drawW / 2 - cloudGap)
-      }
-      const subX = subCenterX - subDrawW / 2
-      const subY = subCenterY - subDrawH / 2
-      ctx.drawImage(this.cloudSubImg, subX, subY, subDrawW, subDrawH)
-    }
-
-    ctx.drawImage(this.cloudImg, centerX - drawW / 2, centerY - drawH / 2, drawW, drawH)
+    ctx.drawImage(this.cloudImg, leftCenterX - drawW / 2, centerY - drawH / 2, drawW, drawH)
+    if (this.cloudSubImg) ctx.drawImage(this.cloudSubImg, rightCenterX - drawW / 2, centerY - drawH / 2, drawW, drawH)
     ctx.globalAlpha = 1
   }
 
