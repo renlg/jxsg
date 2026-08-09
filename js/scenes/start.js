@@ -137,11 +137,39 @@ export class StartScene extends Scene {
     if (!this.hasLeft) this.game.switch('main')
   }
 
+  // 头像昵称授权必须由用户点击触发；授权失败时静默处理，不影响素材加载和进入主城。
+  _requestUserProfile() {
+    if (typeof tt === 'undefined') return
+
+    const saveUser = res => {
+      const userInfo = res && res.userInfo
+      if (!userInfo || !tt.setStorageSync) return
+      try {
+        tt.setStorageSync('jxsg_user', {
+          nickName: userInfo.nickName || userInfo.nickname || '',
+          avatarUrl: userInfo.avatarUrl || ''
+        })
+      } catch (e) {}
+    }
+
+    if (tt.getUserProfile) {
+      tt.getUserProfile({
+        desc: '用于显示游戏昵称与头像',
+        success: saveUser,
+        fail: () => {}
+      })
+    } else if (tt.getUserInfo) {
+      // 兼容不支持 getUserProfile 的旧基础库。
+      tt.getUserInfo({ success: saveUser, fail: () => {} })
+    }
+  }
+
   onTouch(x, y) {
     if (this.isLoading) return
 
     if (this.hitRect(x, y, this.startBtnRect.x, this.startBtnRect.y, this.startBtnRect.w, this.startBtnRect.h)) {
       this.isLoading = true
+      this._requestUserProfile()
       this._precacheAssets()
     }
   }

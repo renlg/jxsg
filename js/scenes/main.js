@@ -211,28 +211,40 @@ export class MainScene extends Scene {
   }
 
   _loadAvatar() {
-    const fallback = () => {
-      const img = tt.createImage()
-      img.onload = () => { this.avatarImg = img }
-      getLocalAssetPath('assets/pvz_heroes/guanyu.png').then(path => { img.src = path })
+    // 默认头像始终先加载；已授权的抖音头像加载成功后再替换。
+    let userAvatarLoaded = false
+    const fallbackImg = tt.createImage()
+    fallbackImg.onload = () => {
+      if (!userAvatarLoaded) this.avatarImg = fallbackImg
     }
-    if (typeof tt !== 'undefined' && tt.getUserInfo) {
-      tt.getUserInfo({
-        success: res => {
-          const userInfo = res && res.userInfo
-          const url = userInfo && userInfo.avatarUrl
-          this.playerNickname = (userInfo && (userInfo.nickName || userInfo.nickname)) || '主公'
-          if (!url) { fallback(); return }
-          const img = tt.createImage()
-          img.onload = () => { this.avatarImg = img }
-          img.onerror = fallback
-          img.src = url
-        },
-        fail: fallback
-      })
-    } else {
-      fallback()
+    getLocalAssetPath('assets/pvz_heroes/guanyu.png').then(path => { fallbackImg.src = path })
+
+    let user = null
+    if (typeof tt !== 'undefined' && tt.getStorageSync) {
+      try { user = tt.getStorageSync('jxsg_user') } catch (e) { user = null }
     }
+    const nickname = user && typeof user.nickName === 'string' ? user.nickName.trim() : ''
+    this.playerNickname = nickname || '主公'
+
+    const avatarUrl = user && typeof user.avatarUrl === 'string' ? user.avatarUrl.trim() : ''
+    if (!avatarUrl) return
+    const userImg = tt.createImage()
+    userImg.onload = () => {
+      userAvatarLoaded = true
+      this.avatarImg = userImg
+    }
+    // 头像地址失效或加载失败时保留默认头像。
+    userImg.onerror = () => {}
+    userImg.src = avatarUrl
+  }
+
+  // 按可用像素宽度截断昵称，避免 Canvas 的 maxWidth 将长昵称横向压扁。
+  _ellipsisText(ctx, text, maxWidth) {
+    if (ctx.measureText(text).width <= maxWidth) return text
+    const ellipsis = '…'
+    const chars = Array.from(text)
+    while (chars.length && ctx.measureText(chars.join('') + ellipsis).width > maxWidth) chars.pop()
+    return chars.join('') + ellipsis
   }
 
   _loadHeroImgs() {
@@ -763,10 +775,11 @@ export class MainScene extends Scene {
     ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
     ctx.font = `bold ${Math.max(16, Math.min(21, Math.round(this.topBarH * 0.27)))}px sans-serif`
+    const nickname = this._ellipsisText(ctx, this.playerNickname, nicknameMaxW)
     ctx.fillStyle = 'rgba(0,0,0,0.72)'
-    ctx.fillText(this.playerNickname, nicknameX + 1, cy + 2, nicknameMaxW)
+    ctx.fillText(nickname, nicknameX + 1, cy + 2)
     ctx.fillStyle = '#fff5d3'
-    ctx.fillText(this.playerNickname, nicknameX, cy, nicknameMaxW)
+    ctx.fillText(nickname, nicknameX, cy)
     ctx.fillStyle = '#caa95d'
     ctx.font = `${Math.max(10, Math.round(this.topBarH * 0.15))}px sans-serif`
     ctx.fillText('乱世英豪', nicknameX, cy + avatarSize * 0.32, nicknameMaxW)
