@@ -1025,7 +1025,7 @@ export class MainScene extends Scene {
     const firstLabelH = Math.max(20, firstRect.h * 0.25)
     const firstIconSize = Math.max(38, Math.min(firstRect.w - 10, firstRect.h - firstLabelH - 4))
     const firstIconY = firstRect.y
-    const dividerY = firstIconY + firstIconSize * 0.25
+    const dividerY = firstIconY + firstIconSize * 0.5
 
     ctx.save()
     const navGrad = ctx.createLinearGradient(0, dividerY, 0, h)
