@@ -1075,7 +1075,10 @@ export class HomeScene extends Scene {
 
     const level = Math.max(1, source.level || 1)
     state.used = true
-    state.cdT = SKILL_COOLDOWN
+    // 任意技能释放后，全技能共享同一轮冷却；已使用标记仍各自独立保留。
+    SKILL_HERO_IDS.forEach(skillHeroId => {
+      this.skillStates[skillHeroId].cdT = SKILL_COOLDOWN
+    })
     state.flashT = 0.6
 
     if (heroId === 'zhaoyun') {
@@ -3264,11 +3267,45 @@ export class HomeScene extends Scene {
       ctx.stroke()
 
       if (state.cdT > 0) {
+        const cx = x + size / 2
+        const cy = y + size / 2
+        const progress = Math.min(1, state.cdT / SKILL_COOLDOWN)
+        const startAngle = -Math.PI / 2
+        const endAngle = startAngle + Math.PI * 2 * progress
+        const pointerAngle = startAngle + Math.PI * 2 * (1 - progress)
+        const arcRadius = size * 0.36
+
+        // 冷却环从 12 点方向顺时针按剩余时间缩短，并用指针强调转圈方向。
+        ctx.lineCap = 'round'
+        ctx.lineWidth = Math.max(3, size * 0.07)
+        ctx.strokeStyle = 'rgba(0,0,0,0.48)'
+        ctx.beginPath()
+        ctx.arc(cx, cy, arcRadius, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+        ctx.beginPath()
+        ctx.arc(cx, cy, arcRadius, startAngle, endAngle, false)
+        ctx.stroke()
+
+        ctx.lineWidth = Math.max(2, size * 0.035)
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+        ctx.beginPath()
+        ctx.moveTo(cx, cy)
+        ctx.lineTo(
+          cx + Math.cos(pointerAngle) * arcRadius * 0.82,
+          cy + Math.sin(pointerAngle) * arcRadius * 0.82
+        )
+        ctx.stroke()
+        ctx.fillStyle = 'rgba(255,255,255,0.95)'
+        ctx.beginPath()
+        ctx.arc(cx, cy, Math.max(2, size * 0.045), 0, Math.PI * 2)
+        ctx.fill()
+
         ctx.fillStyle = '#ffffff'
         ctx.font = `bold ${Math.max(12, Math.round(size * 0.33))}px sans-serif`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillText(String(Math.ceil(state.cdT)), x + size / 2, y + size / 2)
+        ctx.fillText(String(Math.ceil(state.cdT)), cx, cy)
       } else if (state.used) {
         ctx.fillStyle = '#e0e0e0'
         ctx.font = `bold ${Math.max(8, Math.round(size * 0.2))}px sans-serif`
