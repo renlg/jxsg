@@ -279,6 +279,9 @@ export class HomeScene extends Scene {
     }
     this.cardW *= 0.8
     this.cardH *= 0.8
+    // 保留手牌的目标尺寸，刷新手牌时重新布局不会在已缩放尺寸上反复缩小。
+    this.cardBaseW = this.cardW
+    this.cardBaseH = this.cardH
 
     this.imgs = {}
     this.stoneImg = null
@@ -534,23 +537,47 @@ export class HomeScene extends Scene {
   }
 
   _layoutButtons() {
-    const pad = 14
+    // 整条底栏严格对齐草坪左右边界，内部元素空间不足时统一等比缩小。
     const slotX = this.lawnX
-    // 底栏延伸到屏幕右边；左侧是缩小后的手牌，右侧依次放刷新与五个英雄技能。
-    const slotW = this.game.width - slotX - 10
-    const cardGap = 8
+    const slotW = this.lawnW
+    const pad = Math.max(4, Math.min(12, slotW * 0.02))
+    const innerW = Math.max(1, slotW - pad * 2)
+
+    const baseCardW = this.cardBaseW
+    const baseCardH = this.cardBaseH
+    const baseBtnSize = baseCardW * 0.62
+    const baseSkillSize = Math.min(baseCardW, Math.max(1, this.stripH - 12))
+    const baseCardGap = 8
+    const baseSkillGap = 6
+    const baseCardsToRefreshGap = 10
+    const baseRefreshToSkillsGap = 12
+    const baseContentW = baseCardW * 3 + baseCardGap * 2 +
+      baseCardsToRefreshGap + baseBtnSize + baseRefreshToSkillsGap +
+      baseSkillSize * SKILL_HERO_IDS.length + baseSkillGap * (SKILL_HERO_IDS.length - 1)
+    const scale = Math.min(1, innerW / baseContentW)
+
+    this.cardW = baseCardW * scale
+    this.cardH = baseCardH * scale
+    const cardGap = baseCardGap * scale
+    const btnSize = baseBtnSize * scale
+    const skillSize = baseSkillSize * scale
+    const skillGap = baseSkillGap * scale
+    const cardsToRefreshGap = baseCardsToRefreshGap * scale
+    const refreshToSkillsGap = baseRefreshToSkillsGap * scale
     const cardsW = this.cardW * 3 + cardGap * 2
-    const btnSize = this.cardW * 0.62
-    const skillGap = 6
-    const skillStartX = slotX + pad + cardsW + 10 + btnSize + 12
-    const skillRoom = slotX + slotW - pad - skillStartX
-    const skillSize = Math.max(22, Math.min(this.cardW, this.stripH - 12, (skillRoom - skillGap * 4) / 5))
+    const contentW = cardsW + cardsToRefreshGap + btnSize + refreshToSkillsGap +
+      skillSize * SKILL_HERO_IDS.length + skillGap * (SKILL_HERO_IDS.length - 1)
+    // 内容整体居中；左右最外沿始终不会越过 lawnX ~ lawnX + lawnW。
+    const contentX = slotX + (slotW - contentW) / 2
+    const refreshX = contentX + cardsW + cardsToRefreshGap
+    const skillStartX = refreshX + btnSize + refreshToSkillsGap
+
     this.slotX = slotX
     this.slotW = slotW
     this.cardGap = cardGap
-    this.cardsGroupX = slotX + pad
+    this.cardsGroupX = contentX
     this.refreshBtn = {
-      x: slotX + pad + cardsW + 10,
+      x: refreshX,
       y: this.stripY + this.stripH / 2 - btnSize / 2,
       w: btnSize,
       h: btnSize
@@ -1818,7 +1845,7 @@ export class HomeScene extends Scene {
     this._renderLevelCleared(ctx)
   }
 
-  // 卡片槽位边框：底部卡组 + 刷新按钮的深色描金容器
+  // 卡片槽位边框：底部手牌、刷新按钮和技能栏共用的深色描金容器
   _renderCardSlot(ctx) {
     const slotX = this.slotX
     const slotY = this.stripY + 2
