@@ -154,9 +154,9 @@ const LEVEL_WAVE_DEFS = {
 }
 
 const MONSTER_BASE_STATS = {
-  xiaobing: { damage: 5, hp: 80 },
-  gongjian: { damage: 8, hp: 60 },
-  daofu: { damage: 15, hp: 150 }
+  xiaobing: { damage: 2, hp: 80 },
+  gongjian: { damage: 5, hp: 60 },
+  daofu: { damage: 12, hp: 150 }
 }
 
 const BOSS_STATS = {
