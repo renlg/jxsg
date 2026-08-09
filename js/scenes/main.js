@@ -1007,14 +1007,18 @@ export class MainScene extends Scene {
   // 底部横排导航：按钮保持透明，只绘制图标和文字标签。
   _renderBottomNav(ctx) {
     const w = this.game.width
+    const navRect = this.navRects[0]
+    const navLabelH = Math.max(20, navRect.h * 0.25)
+    const navIconH = Math.max(38, Math.min(navRect.w - 10, navRect.h - navLabelH - 4))
+    const dividerY = navRect.y + navIconH * 0.75
 
     ctx.save()
-    // 导航栏不绘制底色、遮罩、按钮块或点击高亮，只保留上边界分隔线。
+    // 导航栏不绘制底色、遮罩、按钮块或点击高亮，分隔线穿过图标区高度的 3/4 处。
     ctx.strokeStyle = 'rgba(229,190,91,0.48)'
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(0, this.navY)
-    ctx.lineTo(w, this.navY)
+    ctx.moveTo(0, dividerY)
+    ctx.lineTo(w, dividerY)
     ctx.stroke()
 
     this.navRects.forEach(rect => {
