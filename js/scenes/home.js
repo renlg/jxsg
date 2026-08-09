@@ -101,7 +101,7 @@ const XIAOBING_ATTACK_PLAY_DUR = XIAOBING_FRAME_COUNT / XIAOBING_ATTACK_FPS
 // 不改变原有 1.0s 节奏本身，只是在动作+后摇更长时顺延下一次攻击，避免动作被打断/循环
 const MONSTER_ATTACK_GAP = Math.max(1.0, XIAOBING_ATTACK_PLAY_DUR + ATTACK_RECOVERY_PAUSE)
 
-// 战役共 15 关；每关守住 60 秒即胜利，怪物属性和出怪间隔在进关时按关卡等级计算。
+// 战役共 15 关；每关守住 180 秒即胜利。
 const LEVEL_COUNT = 15
 const BATTLE_TIME_LIMIT = 180
 const MONSTER_SPAWN_FIRST = 1.5
@@ -110,6 +110,48 @@ const MONSTER_ATTACK_COOLDOWN = 1.0
 const MONSTER_SPAWN_INTERVAL_BASE = 2.8
 const MONSTER_SPAWN_INTERVAL_STEP = 0.22
 const MONSTER_SPAWN_INTERVAL_MIN = 0.6
+
+// 第 1-10 关使用固定小怪队列：关卡内先按兵种（刀盾手 -> 弓箭手），再按等级升序出怪。
+// 第 8 关弓箭手末段漏写等级，按该兵种与刀盾手的最高等级推断为 LV3，并与前一 LV3 段合并。
+const LEVEL_WAVE_DEFS = {
+  1: { xiaobing: [{ lv: 1, count: 50 }] },
+  2: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 30 }] },
+  3: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 20 }] },
+  4: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 30 }] },
+  5: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 50 }, { lv: 5, count: 20 }] },
+  6: {
+    xiaobing: [{ lv: 1, count: 50 }],
+    gongjian: [{ lv: 1, count: 30 }]
+  },
+  7: {
+    xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 20 }],
+    gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 20 }]
+  },
+  8: {
+    xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 30 }],
+    gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 50 }]
+  },
+  9: {
+    xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 30 }],
+    gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }, { lv: 4, count: 20 }]
+  },
+  10: {
+    xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 50 }, { lv: 5, count: 30 }],
+    gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }, { lv: 4, count: 30 }, { lv: 5, count: 20 }]
+  }
+}
+
+const MONSTER_BASE_STATS = {
+  xiaobing: { damage: 5, hp: 80 },
+  gongjian: { damage: 8, hp: 60 },
+  daofu: { damage: 15, hp: 150 }
+}
+
+const BOSS_STATS = {
+  zhangjiao: { damage: 100, hp: 3000 },
+  dongzhuo: { damage: 150, hp: 5000 },
+  lvbu: { damage: 200, hp: 8000 }
+}
 
 // 根据剩余血量百分比返回血条填充色：>70% 默认绿色，<=70% 黄色，<=30% 红色
 function hpBarColor(hp, maxHp) {
@@ -247,7 +289,13 @@ export class HomeScene extends Scene {
     this.refreshCount = 0
     this.monsterSpeed = 30 * (1 + 0.05 * (this.level - 1))
     const spawnInterval = Math.max(MONSTER_SPAWN_INTERVAL_MIN, MONSTER_SPAWN_INTERVAL_BASE - MONSTER_SPAWN_INTERVAL_STEP * (this.level - 1))
-    this.monsterSpawnInterval = spawnInterval
+    this.monsterSpawnQueue = this._buildMonsterSpawnQueue()
+    // 固定队列关卡在可出怪时间内均匀排完；原递减间隔仍作为较慢一侧的上限。
+    const spawnDeadline = this.level === 5 || this.level === 10 ? BATTLE_TIME_LIMIT - 20 : BATTLE_TIME_LIMIT
+    const queueInterval = this.monsterSpawnQueue
+      ? (spawnDeadline - MONSTER_SPAWN_FIRST) / this.monsterSpawnQueue.length
+      : spawnInterval
+    this.monsterSpawnInterval = Math.min(spawnInterval, queueInterval)
     this.battleTime = 0
     this.avatarImg = null
     this._loadAvatar()
@@ -869,50 +917,65 @@ export class HomeScene extends Scene {
     if (this.battleTime >= BATTLE_TIME_LIMIT) return
     const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : this.level === 15 ? 'lvbu' : null
     if (bossType && !this.bossSpawned && this.battleTime >= BATTLE_TIME_LIMIT - 20) {
-      this._spawnMonster(bossType)
+      this._spawnMonster(bossType, this.level)
       this.bossSpawned = true
       return
     }
     if (this.bossSpawned) return
 
     this.monsterSpawnT -= dt
-    if (this.monsterSpawnT <= 0) {
-      this.monsterSpawnT += this.monsterSpawnInterval
-      if (this.monsters.length < MONSTER_MAX_ALIVE) {
-        const monsterLevel = this.level
-        // 已解锁类型按权重抽取：小兵 : 刀斧手 : 弓箭手 = 2 : 1 : 1
-        const typeRoll = Math.random() * (monsterLevel >= 3 ? 4 : monsterLevel >= 2 ? 3 : 2)
-        const monsterType = typeRoll < 2 ? 'xiaobing' : typeRoll < 3 ? 'daofu' : 'gongjian'
-        this._spawnMonster(monsterType)
+    while (this.monsterSpawnT <= 0 && this.monsters.length < MONSTER_MAX_ALIVE) {
+      if (this.monsterSpawnQueue) {
+        const nextMonster = this.monsterSpawnQueue.shift()
+        if (!nextMonster) return
+        this._spawnMonster(nextMonster.type, nextMonster.level)
+        this.monsterSpawnT += this.monsterSpawnInterval
+        continue
       }
+
+      this.monsterSpawnT += this.monsterSpawnInterval
+      const monsterLevel = this.level
+      // 第 11-15 关沿用已解锁类型权重：小兵 : 刀斧手 : 弓箭手 = 2 : 1 : 1。
+      const typeRoll = Math.random() * 4
+      const monsterType = typeRoll < 2 ? 'xiaobing' : typeRoll < 3 ? 'daofu' : 'gongjian'
+      this._spawnMonster(monsterType, monsterLevel)
     }
   }
 
-  _spawnMonster(monsterType) {
-    const monsterLevel = this.level
-    const monsterLevelMultiplier = Math.pow(2, monsterLevel - 1)
-    let monsterHp = Math.round(6 * monsterLevelMultiplier)
-    let monsterDamage = monsterType === 'xiaobing'
-      ? monsterLevelMultiplier
-      : Math.round(1.5 * monsterLevelMultiplier)
+  _buildMonsterSpawnQueue() {
+    const waveDef = LEVEL_WAVE_DEFS[this.level]
+    if (!waveDef) return null
+
+    const queue = []
+    const monsterTypes = ['xiaobing', 'gongjian']
+    monsterTypes.forEach(type => {
+      const groups = waveDef[type] || []
+      groups.forEach(group => {
+        for (let i = 0; i < group.count; i++) queue.push({ type, level: group.lv })
+      })
+    })
+    return queue
+  }
+
+  _spawnMonster(monsterType, monsterLevel) {
+    const baseStats = MONSTER_BASE_STATS[monsterType] || MONSTER_BASE_STATS.xiaobing
+    let monsterHp = baseStats.hp * monsterLevel
+    let monsterDamage = baseStats.damage * monsterLevel
     let walkFrameCount = monsterType === 'xiaobing'
       ? XIAOBING_WALK_FRAME_COUNT
       : monsterType === 'daofu' ? DAOFU_WALK_FRAMES.length : GONGJIAN_WALK_FRAMES.length
 
-    if (monsterType === 'daofu') {
-      // 刀斧手血量翻倍（6 → 12 基础值，随关卡翻倍）
-      monsterHp = Math.round(12 * monsterLevelMultiplier)
-    } else if (monsterType === 'zhangjiao') {
-      monsterHp = 40 * monsterLevelMultiplier
-      monsterDamage = 4 * monsterLevelMultiplier
+    if (monsterType === 'zhangjiao') {
+      monsterHp = BOSS_STATS.zhangjiao.hp
+      monsterDamage = BOSS_STATS.zhangjiao.damage
       walkFrameCount = ZJ_WALK_FRAMES.length
     } else if (monsterType === 'dongzhuo') {
-      monsterHp = 80 * monsterLevelMultiplier
-      monsterDamage = 6 * monsterLevelMultiplier
+      monsterHp = BOSS_STATS.dongzhuo.hp
+      monsterDamage = BOSS_STATS.dongzhuo.damage
       walkFrameCount = DZ_WALK_FRAMES.length
     } else if (monsterType === 'lvbu') {
-      monsterHp = 120 * monsterLevelMultiplier
-      monsterDamage = 8 * monsterLevelMultiplier
+      monsterHp = BOSS_STATS.lvbu.hp
+      monsterDamage = BOSS_STATS.lvbu.damage
       walkFrameCount = LB_WALK_FRAMES.length
     }
 
