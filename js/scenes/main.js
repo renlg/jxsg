@@ -1022,7 +1022,10 @@ export class MainScene extends Scene {
     const w = this.game.width
     const h = this.game.height
     const firstRect = this.navRects[0]
-    const dividerY = firstRect.y + firstRect.h * 0.75
+    const firstLabelH = Math.max(20, firstRect.h * 0.25)
+    const firstIconSize = Math.max(38, Math.min(firstRect.w - 10, firstRect.h - firstLabelH - 4))
+    const firstIconY = firstRect.y
+    const dividerY = firstIconY + firstIconSize * 0.75
 
     ctx.save()
     const navGrad = ctx.createLinearGradient(0, dividerY, 0, h)
@@ -1050,7 +1053,7 @@ export class MainScene extends Scene {
       ctx.fillText(rect.label, rect.x + rect.w / 2, rect.y + rect.h - labelH / 2)
     })
 
-    // 最后绘制分隔线，确保它清晰位于导航条整体高度的 3/4 处。
+    // 最后绘制分隔线，确保它清晰位于按钮图标自身高度的 3/4 处。
     ctx.strokeStyle = 'rgba(229,190,91,0.48)'
     ctx.lineWidth = 1
     ctx.beginPath()
