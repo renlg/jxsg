@@ -109,6 +109,8 @@ export class MainScene extends Scene {
 
     this.heroImgs = {}
     this._loadHeroImgs()
+    this.skillIconImgs = {}
+    this.skillIconLoadState = {}
     this.navImgs = {}
     this._loadNavImgs()
 
@@ -254,6 +256,19 @@ export class MainScene extends Scene {
       img.onload = () => { this.heroImgs[name] = img }
       getLocalAssetPath(`assets/pvz_heroes/${name}.png`).then(path => { img.src = path })
     })
+  }
+
+  _loadSkillIcon(heroId) {
+    if (this.skillIconImgs[heroId] || this.skillIconLoadState[heroId]) return
+    this.skillIconLoadState[heroId] = 'loading'
+    const img = tt.createImage()
+    img.onload = () => {
+      this.skillIconImgs[heroId] = img
+      this.skillIconLoadState[heroId] = 'loaded'
+    }
+    // 加载失败时保留英雄色占位块，避免每帧重复请求。
+    img.onerror = () => { this.skillIconLoadState[heroId] = 'error' }
+    img.src = assetUrl('assets/skills/skill_' + heroId + '.png?v=1')
   }
 
   // 导航图标绕过 downloadFile 缓存链路，使用 TOS 远程地址让 createImage 直接加载。
@@ -460,6 +475,7 @@ export class MainScene extends Scene {
   _renderHeroDetailPanel(ctx) {
     const panel = this.panelRect
     const heroId = this.detailHeroId || HERO_NAMES[0]
+    this._loadSkillIcon(heroId)
     const stats = HERO_PANEL_STATS[heroId]
     const contentY = panel.y + 66
     const portraitSize = Math.max(62, Math.min(112, panel.w * 0.19, panel.h * 0.31))
@@ -522,16 +538,34 @@ export class MainScene extends Scene {
     const skillX = panel.x + 20
     const skillW = panel.w - 40
     const skillH = panel.y + panel.h - 16 - skillY
-    this._roundRect(ctx, skillX, skillY, skillW, Math.max(44, skillH), 9)
+    const skillBoxH = Math.max(64, skillH)
+    this._roundRect(ctx, skillX, skillY, skillW, skillBoxH, 9)
     ctx.fillStyle = 'rgba(255,255,255,0.045)'
     ctx.fill()
+
+    const iconSize = 44
+    const iconX = skillX + 10
+    const iconY = skillY + Math.max(10, (skillBoxH - iconSize) / 2)
+    this._roundRect(ctx, iconX, iconY, iconSize, iconSize, 8)
+    ctx.fillStyle = HERO_RARITY_COLOR[heroId]
+    ctx.fill()
+    const skillIcon = this.skillIconImgs[heroId]
+    if (skillIcon) {
+      ctx.save()
+      this._roundRect(ctx, iconX, iconY, iconSize, iconSize, 8)
+      ctx.clip()
+      ctx.drawImage(skillIcon, iconX, iconY, iconSize, iconSize)
+      ctx.restore()
+    }
+
+    const skillTextX = iconX + iconSize + 12
     ctx.fillStyle = '#f0d58a'
     ctx.font = 'bold 15px sans-serif'
     ctx.textAlign = 'left'
-    ctx.fillText('技能效果', skillX + 12, skillY + 18)
+    ctx.fillText('技能效果', skillTextX, skillY + 18)
     ctx.fillStyle = '#e0e2e8'
     ctx.font = '13px sans-serif'
-    this._drawWrappedText(ctx, HERO_SKILL_TEXT[heroId], skillX + 12, skillY + 40, skillW - 24, 20, 3)
+    this._drawWrappedText(ctx, HERO_SKILL_TEXT[heroId], skillTextX, skillY + 40, skillX + skillW - 12 - skillTextX, 20, 3)
   }
 
   _renderLevelsPanel(ctx) {
