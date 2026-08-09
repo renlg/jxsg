@@ -32,10 +32,10 @@ const GACHA_TOAST_DUR = 0.8
 const LEVEL_COUNT = 15
 const LEVEL_DRAG_THRESHOLD = 8
 const NAV_ITEMS = [
-  { id: 'hero', label: '英雄', asset: 'assets/nav/nav_hero.png' },
-  { id: 'bag', label: '背包', asset: 'assets/nav/nav_bag.png' },
-  { id: 'level', label: '关卡', asset: 'assets/nav/nav_level.png' },
-  { id: 'rank', label: '排行', asset: 'assets/nav/nav_rank.png' }
+  { id: 'hero', label: '英雄', asset: 'assets/nav/nav_hero.png?v=2' },
+  { id: 'bag', label: '背包', asset: 'assets/nav/nav_bag.png?v=2' },
+  { id: 'level', label: '关卡', asset: 'assets/nav/nav_level.png?v=2' },
+  { id: 'rank', label: '排行', asset: 'assets/nav/nav_rank.png?v=2' }
 ]
 
 // 英雄面板展示数值，与 home.js 保持一致。
