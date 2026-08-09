@@ -126,6 +126,7 @@ const MONSTER_ATTACK_GAP = Math.max(1.0, XIAOBING_ATTACK_PLAY_DUR + ATTACK_RECOV
 // 战役共 15 关；每关守住 180 秒即胜利。
 const LEVEL_COUNT = 15
 const BATTLE_TIME_LIMIT = 180
+const PRE_BATTLE_PREP = 10
 const MONSTER_SPAWN_FIRST = 1.5
 const MONSTER_MAX_ALIVE = 8
 const MONSTER_ATTACK_COOLDOWN = 1.0
@@ -243,6 +244,8 @@ export class HomeScene extends Scene {
   constructor(game, params) {
     super(game)
     this.params = params || {}
+    // 每关开局先给玩家 10 秒布阵；倒计时使用真实时间，不受战斗倍速影响。
+    this.prepT = PRE_BATTLE_PREP
   }
 
   enter() {
@@ -1038,17 +1041,22 @@ export class HomeScene extends Scene {
     }
 
     if (!this.gameOver && !this.levelCleared) {
-      this.battleTime = Math.min(BATTLE_TIME_LIMIT, this.battleTime + sdt)
-      this._updateSkills(sdt)
-      this._updateMonsterSpawn(sdt)
-      this._updateMonsters(sdt)
-      this._updateAttacks(sdt)
-      this._updateHeals(sdt)
-      this._updatePendingHits(sdt)
-      this._updateProjectiles(sdt)
-      this._updateFx(sdt)
-      this._checkGameOver()
-      this._checkLevelCleared()
+      if (this.prepT > 0) {
+        // 准备期只走真实秒倒计时，整个战斗世界保持静止；抽卡等 UI 动画仍在上方正常更新。
+        this.prepT = Math.max(0, this.prepT - dt)
+      } else {
+        this.battleTime = Math.min(BATTLE_TIME_LIMIT, this.battleTime + sdt)
+        this._updateSkills(sdt)
+        this._updateMonsterSpawn(sdt)
+        this._updateMonsters(sdt)
+        this._updateAttacks(sdt)
+        this._updateHeals(sdt)
+        this._updatePendingHits(sdt)
+        this._updateProjectiles(sdt)
+        this._updateFx(sdt)
+        this._checkGameOver()
+        this._checkLevelCleared()
+      }
     }
   }
 
@@ -1990,6 +1998,32 @@ export class HomeScene extends Scene {
     this._roundRect(ctx, lawnX - 2, lawnY - 2, this.lawnW + 4, this.lawnH + 4, 8)
     ctx.stroke()
     ctx.restore()
+
+    // 准备倒计时固定显示在右侧泥土地中央，归零后立即消失。
+    if (this.prepT > 0 && dirtRight > dirtX) {
+      const countdown = Math.ceil(this.prepT)
+      const cx = dirtX + (dirtRight - dirtX) / 2
+      const cy = lawnY + this.lawnH / 2
+      const fontSize = Math.max(64, Math.min(96, this.lawnH * 0.34))
+      const radius = fontSize * 0.68
+
+      ctx.save()
+      ctx.fillStyle = 'rgba(35, 22, 12, 0.72)'
+      ctx.beginPath()
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+      ctx.fill()
+
+      ctx.font = `bold ${fontSize}px sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = Math.max(5, fontSize * 0.09)
+      ctx.strokeStyle = 'rgba(48, 27, 12, 0.95)'
+      ctx.strokeText(String(countdown), cx, cy)
+      ctx.fillStyle = '#fff8df'
+      ctx.fillText(String(countdown), cx, cy)
+      ctx.restore()
+    }
   }
 
   // 选目标时给草地和泥土地明确提示；格子技能在点击后由 skillArea 特效确认虚拟列上的 3×3 范围。
