@@ -1015,22 +1015,19 @@ export class MainScene extends Scene {
     ctx.restore()
   }
 
-  // 底部横排导航：按钮保持透明，只绘制图标和文字标签。
+  // 底部横排导航：栏底色与顶部玩家栏主色一致，按钮本身保持透明。
   _renderBottomNav(ctx) {
     const w = this.game.width
-    const navRect = this.navRects[0]
-    const navLabelH = Math.max(20, navRect.h * 0.25)
-    const navIconH = Math.max(38, Math.min(navRect.w - 10, navRect.h - navLabelH - 4))
-    const dividerY = navRect.y + navIconH * 0.75
+    const h = this.game.height
+    const firstRect = this.navRects[0]
+    const firstLabelH = Math.max(20, firstRect.h * 0.25)
+    const firstIconSize = Math.max(38, Math.min(firstRect.w - 10, firstRect.h - firstLabelH - 4))
+    const firstIconY = firstRect.y
+    const dividerY = firstIconY + firstIconSize * 0.75
 
     ctx.save()
-    // 导航栏不绘制底色、遮罩、按钮块或点击高亮，分隔线穿过图标区高度的 3/4 处。
-    ctx.strokeStyle = 'rgba(229,190,91,0.48)'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(0, dividerY)
-    ctx.lineTo(w, dividerY)
-    ctx.stroke()
+    ctx.fillStyle = '#0f1118'
+    ctx.fillRect(0, this.navY, w, h - this.navY)
 
     this.navRects.forEach(rect => {
       const active = NAV_PANEL[rect.id] === this.panel
@@ -1049,6 +1046,14 @@ export class MainScene extends Scene {
       ctx.textBaseline = 'middle'
       ctx.fillText(rect.label, rect.x + rect.w / 2, rect.y + rect.h - labelH / 2)
     })
+
+    // 最后绘制分隔线，确保它清晰穿过图标实际画面的 3/4 高度处。
+    ctx.strokeStyle = 'rgba(229,190,91,0.48)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(0, dividerY)
+    ctx.lineTo(w, dividerY)
+    ctx.stroke()
     ctx.restore()
   }
 
