@@ -139,9 +139,9 @@ const MONSTER_SPAWN_INTERVAL_MIN = 0.6
 const LEVEL_WAVE_DEFS = {
   1: { xiaobing: [{ lv: 1, count: 50 }] },
   2: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 30 }] },
-  3: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 20 }] },
+  3: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 30 }] },
   4: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 30 }] },
-  5: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 50 }, { lv: 5, count: 20 }] },
+  5: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 50 }, { lv: 5, count: 30 }] },
   6: {
     xiaobing: [{ lv: 1, count: 50 }],
     gongjian: [{ lv: 1, count: 30 }]
