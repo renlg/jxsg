@@ -1468,7 +1468,7 @@ export class HomeScene extends Scene {
       if (entry.heroId === 'zhugeliang') {
         // 法球不在起手瞬间生成，也不在动作播到一半的命中点生成，而是等整段施法动画
         // （前摇 -> 挥扇 -> 回收，共 _attackAnimPlayDur('zhugeliang') 秒）完全播放结束后才生成并发射
-        this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur('zhugeliang', entry.level), kind: 'zhugeliangCast', heroEntry: entry, target, resolved: false })
+        this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur('zhugeliang', entry.level, entry), kind: 'zhugeliangCast', heroEntry: entry, target, resolved: false })
         return
       }
 
@@ -1486,7 +1486,7 @@ export class HomeScene extends Scene {
       }
       // 近战伤害不在起手瞬间结算，而是等该武将挥砍动作播完（_attackAnimPlayDur，动作结束的一刻）才扣血——
       // 之后的 ATTACK_RECOVERY_PAUSE 只是保持收势姿态的视觉停顿，不再延后伤害
-      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId, entry.level), kind: 'heroMelee', heroEntry: entry, target, splashTargets, dmg: entry.damage, resolved: false })
+      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId, entry.level, entry), kind: 'heroMelee', heroEntry: entry, target, splashTargets, dmg: entry.damage, resolved: false })
     })
   }
 
@@ -1534,7 +1534,7 @@ export class HomeScene extends Scene {
       entry.attackAnimT = now
 
       // 加血同样不在起手瞬间结算，而是等施法动作播完（_attackAnimPlayDur，动作结束的一刻）才回血
-      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId, entry.level), kind: 'heroHeal', heroEntry: entry, target, heal: this._heroHeal(entry.heroId, entry.level), resolved: false })
+      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId, entry.level, entry), kind: 'heroHeal', heroEntry: entry, target, heal: this._heroHeal(entry.heroId, entry.level), resolved: false })
     })
   }
 
@@ -2301,23 +2301,26 @@ export class HomeScene extends Scene {
 
   // 该武将攻击动作单轮播完所需时长：帧数 /（基础帧率 × 等级攻速倍率），
   // 命中/回血也随之提前——有独立动作帧的武将按各自帧数计算，其余（无独立帧的兜底）用统一的挥击动画时长
-  _attackAnimPlayDur(heroId, level = 1) {
+  _attackAnimPlayDur(heroId, level = 1, entry = null) {
     const bonus = this._heroAttackSpeedBonus(level)
     const fps = HERO_STATS[heroId] ? HERO_STATS[heroId].animFps * (1 + bonus) : null
     if (!fps) return ATTACK_ANIM_DUR
-    if (heroId === 'zhaoyun') return ZHAOYUN_FRAMES.length / fps
-    if (heroId === 'guanyu') return GUANYU_FRAMES.length / fps
-    if (heroId === 'zhangfei') return ZHANGFEI_FRAMES.length / fps
-    if (heroId === 'zhugeliang') return ZHUGELIANG_FRAME_COUNT / fps
-    if (heroId === 'liubei') return LIUBEI_FRAMES.length / fps
-    return ATTACK_ANIM_DUR
+    let dur = ATTACK_ANIM_DUR
+    if (heroId === 'zhaoyun') dur = ZHAOYUN_FRAMES.length / fps
+    else if (heroId === 'guanyu') dur = GUANYU_FRAMES.length / fps
+    else if (heroId === 'zhangfei') dur = ZHANGFEI_FRAMES.length / fps
+    else if (heroId === 'zhugeliang') dur = ZHUGELIANG_FRAME_COUNT / fps
+    else if (heroId === 'liubei') dur = LIUBEI_FRAMES.length / fps
+    // 赵云技能的 +100% 攻速同时作用于动作播放与动作结束时的命中结算点。
+    if (heroId === 'zhaoyun' && entry && entry.speedBuffT > 0) dur /= 2
+    return dur
   }
 
   // 两次攻击之间的最小间隔：基础冷却与加速后动作时长 + 后摇取较大值，再整体应用等级攻速倍率。
   _attackRequiredGap(heroId, level = 1, entry = null) {
     const bonus = this._heroAttackSpeedBonus(level)
     let gap = Math.max(HERO_STATS[heroId].attackCooldown, this._attackAnimPlayDur(heroId, level) + ATTACK_RECOVERY_PAUSE) / (1 + bonus)
-    // 赵云技能只额外缩短攻击间隔，不改数值表；技能持续期间间隔再除以 2。
+    // 赵云技能不改基础节拍公式；技能持续期间把完整攻击间隔整体除以 2。
     if (heroId === 'zhaoyun' && entry && entry.speedBuffT > 0) gap /= 2
     return gap
   }
@@ -2328,7 +2331,7 @@ export class HomeScene extends Scene {
     const last = this._entryAttackAnimStart(entry)
     if (last === null) return false
     const elapsed = (this.animT || 0) - last
-    return elapsed >= 0 && elapsed < this._attackAnimPlayDur(entry.heroId, entry.level)
+    return elapsed >= 0 && elapsed < this._attackAnimPlayDur(entry.heroId, entry.level, entry)
   }
 
   // 判断该武将当前是否处于"攻击动作已播完、正在后摇停顿"的窗口内，用于让无独立动作帧的武将
@@ -2337,7 +2340,7 @@ export class HomeScene extends Scene {
     const last = this._entryAttackAnimStart(entry)
     if (last === null) return false
     const elapsed = (this.animT || 0) - last
-    const playDur = this._attackAnimPlayDur(entry.heroId, entry.level)
+    const playDur = this._attackAnimPlayDur(entry.heroId, entry.level, entry)
     return elapsed >= playDur && elapsed < playDur + ATTACK_RECOVERY_PAUSE
   }
 
@@ -2345,6 +2348,7 @@ export class HomeScene extends Scene {
   // 播完（含后摇停顿期间）后停留在最后一帧（收势姿态），不再从头循环，直到下一次攻击真正触发
   _attackFrameIndex(entry, frameCount, fps) {
     fps *= 1 + this._heroAttackSpeedBonus(entry.level)
+    if (entry.heroId === 'zhaoyun' && entry.speedBuffT > 0) fps *= 2
     const last = this._entryAttackAnimStart(entry)
     if (last === null) return 0
     const elapsed = (this.animT || 0) - last
