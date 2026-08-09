@@ -94,6 +94,7 @@ export class MainScene extends Scene {
     this.panel = null
     this.detailHeroId = null
     this.panelRect = null
+    this.panelBackRect = null
     this.panelCloseRect = null
     this.heroListRects = []
     this.playerNickname = '主公'
@@ -364,6 +365,9 @@ export class MainScene extends Scene {
     const closeW = Math.max(72, Math.min(84, closeH * 2))
     // 渲染和触摸命中共用同一个矩形，避免关闭按钮坐标偏移。
     this.panelCloseRect = { x: panelX + panelW - closeW - 14, y: panelY + 10, w: closeW, h: closeH }
+    this.panelBackRect = this.panel === 'heroDetail'
+      ? { x: panelX + 14, y: panelY + 10, w: closeW, h: closeH }
+      : null
 
     ctx.save()
     ctx.fillStyle = 'rgba(2,3,6,0.78)'
@@ -403,6 +407,21 @@ export class MainScene extends Scene {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText('关闭', close.x + close.w / 2, close.y + close.h / 2)
+
+    if (this.panelBackRect) {
+      const back = this.panelBackRect
+      this._roundRect(ctx, back.x, back.y, back.w, back.h, 7)
+      ctx.fillStyle = 'rgba(184,135,43,0.2)'
+      ctx.fill()
+      ctx.strokeStyle = '#d8bd78'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      ctx.fillStyle = '#f4e4b7'
+      ctx.font = 'bold 15px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText('返回', back.x + back.w / 2, back.y + back.h / 2)
+    }
 
     if (this.panel === 'heroList') this._renderHeroListPanel(ctx)
     else if (this.panel === 'heroDetail') this._renderHeroDetailPanel(ctx)
@@ -1212,6 +1231,10 @@ export class MainScene extends Scene {
 
     // 面板命中优先于头像、导航和主屏内容，打开时完全暂停底层交互。
     if (this.panel) {
+      if (this.panel === 'heroDetail' && this.panelBackRect && this.hitRect(x, y, this.panelBackRect.x, this.panelBackRect.y, this.panelBackRect.w, this.panelBackRect.h)) {
+        this.panel = 'heroList'
+        return
+      }
       if (this.panelCloseRect && this.hitRect(x, y, this.panelCloseRect.x, this.panelCloseRect.y, this.panelCloseRect.w, this.panelCloseRect.h)) {
         this._closePanel()
         return
