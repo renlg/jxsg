@@ -5,6 +5,19 @@ import { ASSET_MANIFEST } from '../asset_manifest.js'
 // 开始页：水墨山水背景 + 游戏标题 + "开始游戏" 按钮，点击后进入主页面
 export class StartScene extends Scene {
   enter() {
+    // 侧边栏复访能力：平台要求接入，跳转/挂载侧边栏入口场景
+    try {
+      if (typeof tt !== 'undefined' && typeof tt.navigateToScene === 'function') {
+        tt.navigateToScene({
+          scene: 'sidebar',
+          success: res => console.log('[Sidebar] navigate ok', res),
+          fail: res => console.log('[Sidebar] navigate fail', res)
+        })
+      }
+    } catch (e) {
+      console.log('[Sidebar] navigateToScene 不可用', e)
+    }
+
     this.bgImg = null
     this.isLoading = false
     this.loadedCount = 0
