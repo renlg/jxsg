@@ -329,7 +329,8 @@ export class MainScene extends Scene {
     const minCenterY = this.topBarH + drawH / 2 + 8
     const maxCenterY = this.navY - drawH / 2 - 8
     const centerY = Math.max(minCenterY, Math.min(h * 0.375, maxCenterY))
-    ctx.drawImage(this.cloudImg, (w - drawW) / 2, centerY - drawH / 2, drawW, drawH)
+    const offsetX = Math.sin(this.animT * 0.3) * 40
+    ctx.drawImage(this.cloudImg, (w - drawW) / 2 + offsetX, centerY - drawH / 2, drawW, drawH)
   }
 
   _renderPanel(ctx) {
@@ -1026,8 +1027,12 @@ export class MainScene extends Scene {
     const dividerY = firstIconY + firstIconSize * 0.75
 
     ctx.save()
-    ctx.fillStyle = '#0f1118'
-    ctx.fillRect(0, this.navY, w, h - this.navY)
+    const navGrad = ctx.createLinearGradient(0, dividerY, 0, h)
+    navGrad.addColorStop(0, 'rgba(8,10,15,0.92)')
+    navGrad.addColorStop(0.72, 'rgba(15,17,24,0.72)')
+    navGrad.addColorStop(1, 'rgba(15,17,24,0)')
+    ctx.fillStyle = navGrad
+    ctx.fillRect(0, dividerY, w, h - dividerY)
 
     this.navRects.forEach(rect => {
       const active = NAV_PANEL[rect.id] === this.panel
