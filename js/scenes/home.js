@@ -380,6 +380,8 @@ export class HomeScene extends Scene {
     })
     this.skillRects = []
     this.skillHeal = null
+    // 需要二次点击草坪确认目标的技能；张飞、赵云仍由技能按钮直接释放。
+    this.pendingSkillTarget = null
     this.goldPop = 0
     this.projectiles = [] // kind: 'magic'（诸葛亮法球）或 'arrow'（弓箭手箭矢）
     this.projectileIdSeq = 0
@@ -1033,6 +1035,14 @@ export class HomeScene extends Scene {
       if (state.flashT > 0) state.flashT = Math.max(0, state.flashT - dt)
     })
 
+    // 选目标期间若施法武将阵亡或技能状态失效，自动退出，避免保留不可释放的高亮。
+    if (this.pendingSkillTarget) {
+      const state = this.skillStates[this.pendingSkillTarget]
+      if (!state || state.used || state.cdT > 0 || !this._highestDeployedHero(this.pendingSkillTarget)) {
+        this.pendingSkillTarget = null
+      }
+    }
+
     this.deployed.forEach(entry => {
       if (entry.speedBuffT > 0) entry.speedBuffT = Math.max(0, entry.speedBuffT - dt)
     })
@@ -1040,17 +1050,19 @@ export class HomeScene extends Scene {
     if (!this.skillHeal) return
     this.skillHeal.tickT -= dt
     while (this.skillHeal && this.skillHeal.tickT <= 0 && this.skillHeal.ticksLeft > 0) {
-      this._applySkillHeal(this.skillHeal.amount)
+      this._applySkillHeal(this.skillHeal)
       this.skillHeal.ticksLeft -= 1
       this.skillHeal.tickT += 1
       if (this.skillHeal.ticksLeft <= 0) this.skillHeal = null
     }
   }
 
-  _applySkillHeal(amount) {
+  _applySkillHeal(heal) {
     this.deployed.forEach(entry => {
+      // 刘备技能只治疗释放时选定中心格周围 3×3 内、当前仍在场的武将。
+      if (Math.abs(entry.r - heal.r) > 1 || Math.abs(entry.c - heal.c) > 1) return
       if (entry.dying || entry.hp >= entry.maxHp) return
-      const healed = Math.min(amount, entry.maxHp - entry.hp)
+      const healed = Math.min(heal.amount, entry.maxHp - entry.hp)
       entry.hp += healed
       const rect = this._cellRect(entry.r, entry.c)
       this.fx.push({ x: rect.x + rect.w / 2, y: rect.y + rect.h * 0.3, t: 0, dur: DMG_TEXT_DUR, kind: 'dmg', text: `+${healed}`, color: '#4caf50' })
@@ -1068,13 +1080,19 @@ export class HomeScene extends Scene {
     return best
   }
 
-  _castHeroSkill(heroId) {
+  _castHeroSkill(heroId, target = null) {
     const state = this.skillStates[heroId]
     const source = this._highestDeployedHero(heroId)
     if (!state || state.used || state.cdT > 0 || !source) return false
 
+    const needsTarget = heroId === 'guanyu' || heroId === 'zhugeliang' || heroId === 'liubei'
+    if (needsTarget && (!target || target.r < 0 || target.r >= this.rows || target.c < 0 || target.c >= this.cols)) {
+      return false
+    }
+
     const level = Math.max(1, source.level || 1)
     state.used = true
+    this.pendingSkillTarget = null
     // 任意技能释放后，全技能共享同一轮冷却；已使用标记仍各自独立保留。
     SKILL_HERO_IDS.forEach(skillHeroId => {
       this.skillStates[skillHeroId].cdT = SKILL_COOLDOWN
@@ -1089,10 +1107,12 @@ export class HomeScene extends Scene {
     } else if (heroId === 'zhugeliang') {
       const damage = this._heroDamage(heroId, level)
       this.monsters.slice().forEach(m => {
-        if (m.state !== 'walking' || m.dead) return
+        const monsterC = Math.floor((m.x - this.lawnX) / this.cell)
+        if (m.state !== 'walking' || m.dead || Math.abs(m.r - target.r) > 1 || Math.abs(monsterC - target.c) > 1) return
         const fxY = this.lawnY + m.r * this.cell + this.cell * 0.5
         this._applyHeroDamageToMonster(m, damage, fxY)
       })
+      this._pushSkillAreaFx(target.r, target.c, false, HERO_RARITY_COLOR[heroId])
     } else if (heroId === 'zhangfei') {
       const duration = 3 + (level - 1) * 0.5
       this.monsters.forEach(m => {
@@ -1101,17 +1121,21 @@ export class HomeScene extends Scene {
     } else if (heroId === 'guanyu') {
       const damage = this._heroDamage(heroId, level) * level
       this.monsters.slice().forEach(m => {
-        if (m.state !== 'walking' || m.dead || m.r !== source.r) return
+        if (m.state !== 'walking' || m.dead || m.r !== target.r) return
         const fxY = this.lawnY + m.r * this.cell + this.cell * 0.5
         this._applyHeroDamageToMonster(m, damage, fxY)
       })
+      this._pushSkillAreaFx(target.r, target.c, true, HERO_RARITY_COLOR[heroId])
     } else if (heroId === 'liubei') {
       const duration = 1 + (level - 1)
       this.skillHeal = {
         amount: this._heroMaxHp(heroId, level),
         ticksLeft: duration,
-        tickT: 1
+        tickT: 1,
+        r: target.r,
+        c: target.c
       }
+      this._pushSkillAreaFx(target.r, target.c, false, HERO_RARITY_COLOR[heroId])
     }
 
     this.fx.push({
@@ -1124,6 +1148,20 @@ export class HomeScene extends Scene {
       color: HERO_RARITY_COLOR[heroId] || '#ffd76a'
     })
     return true
+  }
+
+  // 关羽显示整行范围；诸葛亮、刘备显示以目标格为中心并截断到草坪内的 3×3 范围。
+  _pushSkillAreaFx(r, c, wholeRow, color) {
+    this.fx.push({
+      r1: wholeRow ? r : Math.max(0, r - 1),
+      r2: wholeRow ? r : Math.min(this.rows - 1, r + 1),
+      c1: wholeRow ? 0 : Math.max(0, c - 1),
+      c2: wholeRow ? this.cols - 1 : Math.min(this.cols - 1, c + 1),
+      t: 0,
+      dur: 0.65,
+      kind: 'skillArea',
+      color: color || '#ffd76a'
+    })
   }
 
   _updateMonsterSpawn(dt) {
@@ -1832,6 +1870,7 @@ export class HomeScene extends Scene {
     }
 
     this._renderLawn(ctx)
+    this._renderSkillTargetOverlay(ctx)
     this._renderTopBar(ctx)
     this._renderBattleProgress(ctx)
     this._renderDeployedHeroes(ctx)
@@ -1910,6 +1949,36 @@ export class HomeScene extends Scene {
     ctx.lineWidth = 4
     this._roundRect(ctx, lawnX - 2, lawnY - 2, this.lawnW + 4, this.lawnH + 4, 8)
     ctx.stroke()
+    ctx.restore()
+  }
+
+  // 选目标时给草坪明确提示：关羽的三行均可选；格子技能在点击后由 skillArea 特效确认 3×3 范围。
+  _renderSkillTargetOverlay(ctx) {
+    if (!this.pendingSkillTarget) return
+
+    ctx.save()
+    if (this.pendingSkillTarget === 'guanyu') {
+      for (let r = 0; r < this.rows; r++) {
+        const rect = this._cellRect(r, 0)
+        ctx.fillStyle = r % 2 === 0 ? 'rgba(255,118,92,0.16)' : 'rgba(255,184,92,0.13)'
+        ctx.fillRect(this.lawnX, rect.y, this.lawnW, this.cell)
+        ctx.strokeStyle = 'rgba(255,225,150,0.72)'
+        ctx.lineWidth = 2
+        ctx.strokeRect(this.lawnX + 1, rect.y + 1, this.lawnW - 2, this.cell - 2)
+      }
+    } else {
+      // 未确认中心格前轻描所有可点格；按下后立即以范围特效显示实际截断后的 3×3。
+      ctx.fillStyle = 'rgba(80,220,190,0.1)'
+      ctx.fillRect(this.lawnX, this.lawnY, this.lawnW, this.lawnH)
+      ctx.strokeStyle = 'rgba(190,255,230,0.42)'
+      ctx.lineWidth = 1
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          const rect = this._cellRect(r, c)
+          ctx.strokeRect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
+        }
+      }
+    }
     ctx.restore()
   }
 
@@ -2787,6 +2856,21 @@ export class HomeScene extends Scene {
         ctx.textBaseline = 'middle'
         ctx.fillText(f.text, f.x, f.y - progress * this.cell * 0.45)
         ctx.restore()
+      } else if (f.kind === 'skillArea') {
+        const x = this.lawnX + f.c1 * this.cell
+        const y = this.lawnY + f.r1 * this.cell
+        const w = (f.c2 - f.c1 + 1) * this.cell
+        const h = (f.r2 - f.r1 + 1) * this.cell
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.fillStyle = f.color || '#ffd76a'
+        ctx.globalAlpha = alpha * 0.24
+        ctx.fillRect(x, y, w, h)
+        ctx.globalAlpha = alpha
+        ctx.strokeStyle = f.color || '#ffd76a'
+        ctx.lineWidth = Math.max(3, this.cell * 0.05)
+        ctx.strokeRect(x + 2, y + 2, w - 4, h - 4)
+        ctx.restore()
       } else if (f.kind === 'slash') {
         ctx.save()
         ctx.globalAlpha = alpha
@@ -3229,6 +3313,7 @@ export class HomeScene extends Scene {
       const state = this.skillStates[heroId]
       const deployed = !!this._highestDeployedHero(heroId)
       const disabled = !deployed || state.used || state.cdT > 0
+      const targeting = this.pendingSkillTarget === heroId
       const img = this.skillImgs[heroId]
       const radius = Math.max(5, size * 0.16)
 
@@ -3261,10 +3346,21 @@ export class HomeScene extends Scene {
         this._roundRect(ctx, x + 2, y + 2, size - 4, size - 4, Math.max(3, radius - 2))
         ctx.fill()
       }
-      ctx.strokeStyle = disabled ? '#686b72' : (HERO_RARITY_COLOR[heroId] || '#ffd76a')
-      ctx.lineWidth = 2
+      ctx.strokeStyle = disabled ? '#686b72' : (targeting ? '#fff3a0' : (HERO_RARITY_COLOR[heroId] || '#ffd76a'))
+      ctx.lineWidth = targeting ? 5 : 2
       this._roundRect(ctx, x, y, size, size, radius)
       ctx.stroke()
+
+      if (targeting) {
+        ctx.fillStyle = 'rgba(0,0,0,0.72)'
+        this._roundRect(ctx, x + 3, y + size * 0.68, size - 6, size * 0.27, Math.max(3, radius * 0.45))
+        ctx.fill()
+        ctx.fillStyle = '#fff3a0'
+        ctx.font = `bold ${Math.max(8, Math.round(size * 0.16))}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('选目标', x + size / 2, y + size * 0.815)
+      }
 
       if (state.cdT > 0) {
         const cx = x + size / 2
@@ -3431,11 +3527,13 @@ export class HomeScene extends Scene {
 
   onTouch(x, y) {
     if (this.speedBtnRect && this._hitRect(this.speedBtnRect, x, y)) {
+      this.pendingSkillTarget = null
       this.speed = this.speed >= 3 ? 1 : this.speed + 1
       return
     }
 
     if (this.exitBtnRect && this._hitRect(this.exitBtnRect, x, y)) {
+      this.pendingSkillTarget = null
       this.game.switch('main')
       return
     }
@@ -3465,9 +3563,40 @@ export class HomeScene extends Scene {
     for (let i = 0; i < this.skillRects.length; i++) {
       const rect = this.skillRects[i]
       if (this._hitRect(rect, x, y)) {
-        this._castHeroSkill(rect.heroId)
+        const heroId = rect.heroId
+        const state = this.skillStates[heroId]
+        const source = this._highestDeployedHero(heroId)
+        // 未部署、已使用或共享冷却中的按钮保持不可操作，也不会打断当前合法选目标状态。
+        if (!state || state.used || state.cdT > 0 || !source) return
+
+        const needsTarget = heroId === 'guanyu' || heroId === 'zhugeliang' || heroId === 'liubei'
+        if (needsTarget) {
+          // 再点同一技能取消；点另一个可用的选目标技能则直接切换。
+          this.pendingSkillTarget = this.pendingSkillTarget === heroId ? null : heroId
+        } else {
+          // 张飞、赵云点击按钮立即全屏释放。
+          this.pendingSkillTarget = null
+          this._castHeroSkill(heroId)
+        }
         return
       }
+    }
+
+    const inSkillLawn = x >= this.lawnX && x < this.lawnX + this.lawnW &&
+      y >= this.lawnY && y < this.lawnY + this.lawnH
+    if (this.pendingSkillTarget) {
+      if (inSkillLawn) {
+        // 技能目标允许选择第 0 列石头格；它只作为范围中心，不参与部署规则。
+        const target = {
+          c: Math.floor((x - this.lawnX) / this.cell),
+          r: Math.floor((y - this.lawnY) / this.cell)
+        }
+        const heroId = this.pendingSkillTarget
+        if (!this._castHeroSkill(heroId, target)) this.pendingSkillTarget = null
+        return
+      }
+      // 点击草坪和技能按钮以外的位置只取消选目标，不消耗技能；随后仍处理原按钮/卡牌操作。
+      this.pendingSkillTarget = null
     }
 
     if (this.pull) return
