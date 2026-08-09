@@ -121,12 +121,11 @@ export class MainScene extends Scene {
   _layoutLobby(w, h) {
     // 导航按钮放大并与屏幕底边保持距离，避免图标和文字贴底。
     const navBottomPad = Math.max(14, Math.min(20, Math.round(h * 0.035)))
-    const navTopPad = Math.max(4, Math.round(h * 0.008))
     const navSidePad = Math.max(12, Math.round(w * 0.035))
     const navGap = Math.max(8, Math.min(18, Math.round(w * 0.025)))
     const availableButtonW = (w - navSidePad * 2 - navGap * 3) / NAV_ITEMS.length
     const navButtonSize = Math.max(72, Math.min(96, Math.round(h * 0.23), availableButtonW))
-    this.navH = navTopPad + navButtonSize + navBottomPad
+    this.navH = navButtonSize + navBottomPad
     this.navY = h - this.navH
     const navTotalW = navButtonSize * NAV_ITEMS.length + navGap * (NAV_ITEMS.length - 1)
     const navStartX = (w - navTotalW) / 2
@@ -134,7 +133,7 @@ export class MainScene extends Scene {
       id: item.id,
       label: item.label,
       x: navStartX + i * (navButtonSize + navGap),
-      y: this.navY + navTopPad,
+      y: this.navY,
       w: navButtonSize,
       h: navButtonSize
     }))
@@ -753,13 +752,6 @@ export class MainScene extends Scene {
     ctx.font = `${Math.max(10, Math.round(this.topBarH * 0.15))}px sans-serif`
     ctx.fillText('乱世英豪', nicknameX, cy + avatarSize * 0.32, nicknameMaxW)
 
-    // 顶栏与主内容区的通栏分隔线。
-    ctx.strokeStyle = 'rgba(255,255,255,0.28)'
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.moveTo(0, this.topBarY + this.topBarH - 0.75)
-    ctx.lineTo(w, this.topBarY + this.topBarH - 0.75)
-    ctx.stroke()
   }
 
   _renderSectionTitle(ctx) {
@@ -1015,19 +1007,14 @@ export class MainScene extends Scene {
   // 底部横排导航：按钮保持透明，只绘制图标和文字标签。
   _renderBottomNav(ctx) {
     const w = this.game.width
-    const h = this.game.height
 
     ctx.save()
-    const barGrad = ctx.createLinearGradient(0, this.navY, 0, h)
-    barGrad.addColorStop(0, 'rgba(10,12,17,0.76)')
-    barGrad.addColorStop(1, 'rgba(3,4,7,0.96)')
-    ctx.fillStyle = barGrad
-    ctx.fillRect(0, this.navY, w, this.navH)
+    // 导航栏不绘制底色、遮罩、按钮块或点击高亮，只保留上边界分隔线。
     ctx.strokeStyle = 'rgba(229,190,91,0.48)'
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(0, this.navY + 0.5)
-    ctx.lineTo(w, this.navY + 0.5)
+    ctx.moveTo(0, this.navY)
+    ctx.lineTo(w, this.navY)
     ctx.stroke()
 
     this.navRects.forEach(rect => {
