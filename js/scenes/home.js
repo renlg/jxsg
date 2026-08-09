@@ -30,12 +30,20 @@ const HERO_RARITY_COLOR = {
 // 诸葛亮：血量少、攻击力高、射程远（4 格）、攻速慢
 // 刘备：血量高、加血少、治疗范围覆盖周边 3 格、施法慢
 const HERO_STATS = {
-  guanyu: { maxHp: 160, damage: 20, attackRange: 0.8, attackCooldown: 1.8, animFps: 7 },
+  guanyu: { maxHp: 200, damage: 20, attackRange: 0.8, attackCooldown: 1.8, animFps: 7 },
   zhangfei: { maxHp: 120, damage: 10, attackRange: 2, attackCooldown: 1.6, animFps: 8 },
   zhaoyun: { maxHp: 120, damage: 10, attackRange: 2, attackCooldown: 0.6, animFps: 14 },
-  zhugeliang: { maxHp: 80, damage: 20, attackRange: 4, attackCooldown: 2.0, animFps: 7 },
-  liubei: { maxHp: 180, damage: 0, attackRange: 0, attackCooldown: 2.0, animFps: 7, healAmount: 10, healRange: 3 }
+  zhugeliang: { maxHp: 100, damage: 20, attackRange: 4, attackCooldown: 2.0, animFps: 7 },
+  liubei: { maxHp: 300, damage: 0, attackRange: 0, attackCooldown: 2.0, animFps: 7, healAmount: 10, healRange: 3 }
 }
+
+// 通用武将 LV1-5 按 round(基础值 × 1.6^(等级-1))；LV6 起从 LV5 结果继续逐级 ×1.6。
+// 关羽 LV1-5 使用单独给定的数值表，之后同样从 LV5 表值继续递推。
+const HERO_LEVEL_MULTIPLIER = 1.6
+const GUANYU_DAMAGE_BY_LEVEL = [20, 38, 61, 98, 157]
+const GUANYU_HP_BY_LEVEL = [200, 320, 512, 820, 1312]
+// 所有武将共用攻速等级表；LV6 起保持 LV5 的 +50%。
+const HERO_ATTACK_SPEED_BONUS_BY_LEVEL = [0, 0.10, 0.20, 0.30, 0.50]
 
 // 张飞攻击命中时触发眩晕的概率，以及眩晕怪物无法行动/攻击（含攻击动作冻结在原地）的持续时间（秒）
 const STUN_PROC_CHANCE = 0.10
@@ -178,13 +186,11 @@ const MONSTER_GOLD_BASE = 10 // 1 级怪物的基础掉落金币；实际掉落�
 const GACHA_TOAST_DUR = 0.8
 const REFRESH_COST_BASE = 30
 
-// 武将升级：等级属于该武将本身（同一武将的多个部署副本共享等级），每级 +50% 攻击力、+15% 最大生命；
+// 武将升级：等级属于该武将本身（同一武将的多个部署副本共享等级），战斗数值按等级表逐级成长；
 // 升级花费随当前等级线性增长（level -> level+1 花费 UPGRADE_COST_BASE * level 金币 + FRAGMENT_COST_PER_LV * level 碎片），可调；
 // 碎片来自主页面抽卡（main.js），金币/碎片二者缺一不可
 const UPGRADE_COST_BASE = 200
 const FRAGMENT_COST_PER_LV = 5
-const HERO_HP_LEVEL_BONUS = 0.15
-const HERO_DAMAGE_LEVEL_BONUS = 0.5
 function upgradeCost(level) {
   return UPGRADE_COST_BASE * level
 }
@@ -397,20 +403,52 @@ export class HomeScene extends Scene {
     return hand
   }
 
-  // 指定卡牌/实例等级下的实际属性：伤害每级 +50%，最大生命每级 +15%。
+  _heroScaleFromValue(value, levelsToAdd) {
+    for (let i = 0; i < levelsToAdd; i++) value = Math.round(value * HERO_LEVEL_MULTIPLIER)
+    return value
+  }
+
+  // 通用等级数值：LV1-5 按基础值指数成长，LV6 起从 LV5 结果逐级递推，等级不设上限。
+  _heroScaledStat(baseValue, level = 1) {
+    const safeLevel = Math.max(1, Math.floor(Number(level) || 1))
+    const levelFiveValue = Math.round(baseValue * Math.pow(HERO_LEVEL_MULTIPLIER, Math.min(safeLevel, 5) - 1))
+    return safeLevel <= 5 ? levelFiveValue : this._heroScaleFromValue(levelFiveValue, safeLevel - 5)
+  }
+
+  // 关羽 LV1-5 走手工数值表，LV6 起从 LV5 继续逐级 ×1.6；刘备始终没有攻击伤害。
   _heroDamage(heroId, level = 1) {
     const base = HERO_STATS[heroId]
-    let damage = Math.round(base.damage * (1 + HERO_DAMAGE_LEVEL_BONUS * (level - 1)))
-    return damage
+    if (!base || base.damage === 0) return 0
+    const safeLevel = Math.max(1, Math.floor(Number(level) || 1))
+    if (heroId !== 'guanyu') return this._heroScaledStat(base.damage, safeLevel)
+    if (safeLevel <= GUANYU_DAMAGE_BY_LEVEL.length) return GUANYU_DAMAGE_BY_LEVEL[safeLevel - 1]
+    return this._heroScaleFromValue(GUANYU_DAMAGE_BY_LEVEL[GUANYU_DAMAGE_BY_LEVEL.length - 1], safeLevel - GUANYU_DAMAGE_BY_LEVEL.length)
+  }
+
+  _heroMaxHp(heroId, level = 1) {
+    const base = HERO_STATS[heroId]
+    if (!base) return 0
+    const safeLevel = Math.max(1, Math.floor(Number(level) || 1))
+    if (heroId !== 'guanyu') return this._heroScaledStat(base.maxHp, safeLevel)
+    if (safeLevel <= GUANYU_HP_BY_LEVEL.length) return GUANYU_HP_BY_LEVEL[safeLevel - 1]
+    return this._heroScaleFromValue(GUANYU_HP_BY_LEVEL[GUANYU_HP_BY_LEVEL.length - 1], safeLevel - GUANYU_HP_BY_LEVEL.length)
+  }
+
+  _heroHeal(heroId, level = 1) {
+    const base = HERO_STATS[heroId]
+    return base && base.healAmount ? this._heroScaledStat(base.healAmount, level) : 0
   }
 
   _heroEffectiveStats(heroId, level = 1) {
-    const base = HERO_STATS[heroId]
-    let maxHp = Math.round(base.maxHp * (1 + HERO_HP_LEVEL_BONUS * (level - 1)))
     return {
-      maxHp,
+      maxHp: this._heroMaxHp(heroId, level),
       damage: this._heroDamage(heroId, level)
     }
+  }
+
+  _heroAttackSpeedBonus(level = 1) {
+    const safeLevel = Math.max(1, Math.floor(Number(level) || 1))
+    return HERO_ATTACK_SPEED_BONUS_BY_LEVEL[Math.min(safeLevel, HERO_ATTACK_SPEED_BONUS_BY_LEVEL.length) - 1]
   }
 
   // 全局武将升级仅保留进度与存档兼容，不再改动已部署实例的等级或属性。
@@ -1186,9 +1224,8 @@ export class HomeScene extends Scene {
       if (entry.heroId === 'liubei') return
       const key = `${entry.heroId}_${entry.r}_${entry.c}`
       const last = this.lastAtkT[key] || -Infinity
-      // 冷却值本身不变（HERO_STATS[heroId].attackCooldown），但下一次攻击还需等上一次攻击动画播完 + 后摇停顿，
-      // 两者取较大值，避免攻击动作还没播完/还在后摇就被打断重新开始
-      if (now - last < this._attackRequiredGap(entry.heroId)) return
+      // 基础冷却值不变；实际攻击间隔、动作帧率和命中时点统一应用当前等级攻速加成。
+      if (now - last < this._attackRequiredGap(entry.heroId, entry.level)) return
 
       const range = HERO_STATS[entry.heroId].attackRange
       let target = null
@@ -1206,7 +1243,7 @@ export class HomeScene extends Scene {
       if (entry.heroId === 'zhugeliang') {
         // 法球不在起手瞬间生成，也不在动作播到一半的命中点生成，而是等整段施法动画
         // （前摇 -> 挥扇 -> 回收，共 _attackAnimPlayDur('zhugeliang') 秒）完全播放结束后才生成并发射
-        this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur('zhugeliang'), kind: 'zhugeliangCast', heroEntry: entry, target, resolved: false })
+        this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur('zhugeliang', entry.level), kind: 'zhugeliangCast', heroEntry: entry, target, resolved: false })
         return
       }
 
@@ -1214,7 +1251,7 @@ export class HomeScene extends Scene {
       target.attackT = ATTACK_ANIM_DUR
       // 近战伤害不在起手瞬间结算，而是等该武将挥砍动作播完（_attackAnimPlayDur，动作结束的一刻）才扣血——
       // 之后的 ATTACK_RECOVERY_PAUSE 只是保持收势姿态的视觉停顿，不再延后伤害
-      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId), kind: 'heroMelee', heroEntry: entry, target, dmg: entry.damage, resolved: false })
+      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId, entry.level), kind: 'heroMelee', heroEntry: entry, target, dmg: entry.damage, resolved: false })
     })
   }
 
@@ -1254,7 +1291,7 @@ export class HomeScene extends Scene {
       if (entry.heroId !== 'liubei') return
       const key = `${entry.heroId}_${entry.r}_${entry.c}`
       const last = this.lastAtkT[key] || -Infinity
-      if (now - last < this._attackRequiredGap(entry.heroId)) return
+      if (now - last < this._attackRequiredGap(entry.heroId, entry.level)) return
 
       const target = this._findHealTarget(entry)
       if (!target) return
@@ -1262,7 +1299,7 @@ export class HomeScene extends Scene {
       entry.attackAnimT = now
 
       // 加血同样不在起手瞬间结算，而是等施法动作播完（_attackAnimPlayDur，动作结束的一刻）才回血
-      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId), kind: 'heroHeal', heroEntry: entry, target, heal: HERO_STATS[entry.heroId].healAmount, resolved: false })
+      this.pendingHits.push({ t: 0, hitAt: this._attackAnimPlayDur(entry.heroId, entry.level), kind: 'heroHeal', heroEntry: entry, target, heal: this._heroHeal(entry.heroId, entry.level), resolved: false })
     })
   }
 
@@ -1980,10 +2017,11 @@ export class HomeScene extends Scene {
     return this.monsters.some(m => m.state === 'walking' && this._cellDistToMonster(entry, m) <= range)
   }
 
-  // 该武将攻击动作单轮播完所需时长：帧数 / HERO_STATS[heroId].animFps，攻速越快帧率越高、播得越快，
+  // 该武将攻击动作单轮播完所需时长：帧数 /（基础帧率 × 等级攻速倍率），
   // 命中/回血也随之提前——有独立动作帧的武将按各自帧数计算，其余（无独立帧的兜底）用统一的挥击动画时长
-  _attackAnimPlayDur(heroId) {
-    const fps = HERO_STATS[heroId] ? HERO_STATS[heroId].animFps : null
+  _attackAnimPlayDur(heroId, level = 1) {
+    const bonus = this._heroAttackSpeedBonus(level)
+    const fps = HERO_STATS[heroId] ? HERO_STATS[heroId].animFps * (1 + bonus) : null
     if (!fps) return ATTACK_ANIM_DUR
     if (heroId === 'zhaoyun') return ZHAOYUN_FRAMES.length / fps
     if (heroId === 'guanyu') return GUANYU_FRAMES.length / fps
@@ -1993,10 +2031,10 @@ export class HomeScene extends Scene {
     return ATTACK_ANIM_DUR
   }
 
-  // 两次攻击之间的最小间隔：取"该武将自身攻击冷却"与"攻击动画播完 + 后摇停顿"两者中较大值，
-  // 不改变 HERO_STATS[heroId].attackCooldown 本身，只在动作+后摇更长时顺延下一次攻击的触发时机
-  _attackRequiredGap(heroId) {
-    return Math.max(HERO_STATS[heroId].attackCooldown, this._attackAnimPlayDur(heroId) + ATTACK_RECOVERY_PAUSE)
+  // 两次攻击之间的最小间隔：基础冷却与加速后动作时长 + 后摇取较大值，再整体应用等级攻速倍率。
+  _attackRequiredGap(heroId, level = 1) {
+    const bonus = this._heroAttackSpeedBonus(level)
+    return Math.max(HERO_STATS[heroId].attackCooldown, this._attackAnimPlayDur(heroId, level) + ATTACK_RECOVERY_PAUSE) / (1 + bonus)
   }
 
   // 当前是否正处于攻击动画播放窗口内（从触发时刻起算，动作播完即结束，不含后摇）。
@@ -2005,7 +2043,7 @@ export class HomeScene extends Scene {
     const last = this._entryAttackAnimStart(entry)
     if (last === null) return false
     const elapsed = (this.animT || 0) - last
-    return elapsed >= 0 && elapsed < this._attackAnimPlayDur(entry.heroId)
+    return elapsed >= 0 && elapsed < this._attackAnimPlayDur(entry.heroId, entry.level)
   }
 
   // 判断该武将当前是否处于"攻击动作已播完、正在后摇停顿"的窗口内，用于让无独立动作帧的武将
@@ -2014,13 +2052,14 @@ export class HomeScene extends Scene {
     const last = this._entryAttackAnimStart(entry)
     if (last === null) return false
     const elapsed = (this.animT || 0) - last
-    const playDur = this._attackAnimPlayDur(entry.heroId)
+    const playDur = this._attackAnimPlayDur(entry.heroId, entry.level)
     return elapsed >= playDur && elapsed < playDur + ATTACK_RECOVERY_PAUSE
   }
 
   // 有独立动作帧的攻击动画的帧序号：以部署实例记录的本次攻击触发时刻为起点单次播放一轮，
   // 播完（含后摇停顿期间）后停留在最后一帧（收势姿态），不再从头循环，直到下一次攻击真正触发
   _attackFrameIndex(entry, frameCount, fps) {
+    fps *= 1 + this._heroAttackSpeedBonus(entry.level)
     const last = this._entryAttackAnimStart(entry)
     if (last === null) return 0
     const elapsed = (this.animT || 0) - last
@@ -3136,8 +3175,7 @@ export class HomeScene extends Scene {
           return
         }
         const heroId = card.heroId
-        const baseStats = HERO_STATS[heroId]
-        const maxHp = Math.round(baseStats.maxHp * (1 + HERO_HP_LEVEL_BONUS * (card.level - 1)))
+        const maxHp = this._heroMaxHp(heroId, card.level)
         const damage = this._heroDamage(heroId, card.level)
         const entry = { heroId, r, c, hp: maxHp, maxHp, damage, hurtT: 0, attackAnimT: null }
         entry.level = card.level
@@ -3180,13 +3218,14 @@ export class HomeScene extends Scene {
     const sourceIndex = this.deployed.indexOf(source)
     if (sourceIndex === -1) return false
 
-    const newMaxHp = Math.round((source.maxHp + target.maxHp) * 0.8)
-    const newDamage = Math.round((source.damage + target.damage) * 0.8)
+    const newLevel = target.level + 1
+    const newMaxHp = this._heroMaxHp(heroId, newLevel)
+    const newDamage = this._heroDamage(heroId, newLevel)
     this.deployed.splice(sourceIndex, 1)
     target.maxHp = newMaxHp
     target.damage = newDamage
     target.hp = newMaxHp
-    target.level += 1
+    target.level = newLevel
     if (!Number.isFinite(target.attackAnimT)) {
       const targetKey = `${target.heroId}_${target.r}_${target.c}`
       const last = this.lastAtkT[targetKey]
@@ -3212,16 +3251,14 @@ export class HomeScene extends Scene {
     if (!card || !target || card.heroId !== target.heroId || card.level !== target.level) return false
 
     const heroId = card.heroId
-    const baseStats = HERO_STATS[heroId]
-    const cardMaxHp = Math.round(baseStats.maxHp * (1 + HERO_HP_LEVEL_BONUS * (card.level - 1)))
-    const cardDamage = this._heroDamage(heroId, card.level)
-    const newMaxHp = Math.round((cardMaxHp + target.maxHp) * 0.8)
-    const newDamage = Math.round((cardDamage + target.damage) * 0.8)
+    const newLevel = target.level + 1
+    const newMaxHp = this._heroMaxHp(heroId, newLevel)
+    const newDamage = this._heroDamage(heroId, newLevel)
     this.hand.splice(cardIndex, 1)
     target.maxHp = newMaxHp
     target.damage = newDamage
     target.hp = newMaxHp
-    target.level += 1
+    target.level = newLevel
     if (!Number.isFinite(target.attackAnimT)) {
       const targetKey = `${target.heroId}_${target.r}_${target.c}`
       const last = this.lastAtkT[targetKey]
@@ -3296,8 +3333,7 @@ export class HomeScene extends Scene {
           if (target) {
             this._fuseCardOntoHero(card, this._dragCard.index, target)
           } else {
-            const baseStats = HERO_STATS[heroId]
-            const maxHp = Math.round(baseStats.maxHp * (1 + HERO_HP_LEVEL_BONUS * (card.level - 1)))
+            const maxHp = this._heroMaxHp(heroId, card.level)
             const damage = this._heroDamage(heroId, card.level)
             const entry = { heroId, r: this._dragHoverR, c: this._dragHoverC, hp: maxHp, maxHp, damage, hurtT: 0, attackAnimT: null }
             entry.level = card.level
