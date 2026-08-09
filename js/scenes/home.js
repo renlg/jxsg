@@ -296,8 +296,8 @@ export class HomeScene extends Scene {
     this.monsterSpeed = 30 * (1 + 0.05 * (this.level - 1))
     const spawnInterval = Math.max(MONSTER_SPAWN_INTERVAL_MIN, MONSTER_SPAWN_INTERVAL_BASE - MONSTER_SPAWN_INTERVAL_STEP * (this.level - 1))
     this.monsterSpawnQueue = this._buildMonsterSpawnQueue()
-    // 固定队列关卡在可出怪时间内均匀排完；原递减间隔仍作为较慢一侧的上限。
-    const spawnDeadline = this.level === 5 || this.level === 10 ? BATTLE_TIME_LIMIT - 20 : BATTLE_TIME_LIMIT
+    // 固定队列关卡提前 40 秒排完，为满员卡队列和 BOSS 收尾预留时间；原递减间隔仍作为较慢一侧的上限。
+    const spawnDeadline = this.level === 5 || this.level === 10 ? BATTLE_TIME_LIMIT - 40 : BATTLE_TIME_LIMIT
     const queueInterval = this.monsterSpawnQueue
       ? (spawnDeadline - MONSTER_SPAWN_FIRST) / this.monsterSpawnQueue.length
       : spawnInterval
@@ -951,13 +951,26 @@ export class HomeScene extends Scene {
   }
 
   _updateMonsterSpawn(dt) {
-    // 计时结束即停止出怪；BOSS 关在最后 20 秒生成唯一 BOSS，且它是本关最后一只怪物。
-    if (this.battleTime >= BATTLE_TIME_LIMIT) return
     const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : this.level === 15 ? 'lvbu' : null
-    if (bossType && !this.bossSpawned && this.battleTime >= BATTLE_TIME_LIMIT - 20) {
+
+    // 180 秒兜底：队列仍未出完时丢弃剩余小怪，保证 BOSS 一定出现。
+    if (bossType && !this.bossSpawned && this.battleTime >= BATTLE_TIME_LIMIT) {
+      if (this.monsterSpawnQueue) this.monsterSpawnQueue.length = 0
       this._spawnMonster(bossType, this.level)
       this.bossSpawned = true
       return
+    }
+    if (this.battleTime >= BATTLE_TIME_LIMIT) return
+
+    if (bossType && !this.bossSpawned) {
+      const queueDone = !this.monsterSpawnQueue || this.monsterSpawnQueue.length === 0
+      const timeUp = this.battleTime >= BATTLE_TIME_LIMIT - 20
+      // 队列关等待小怪队列出完再生成 BOSS；非队列关仍在 160 秒生成 BOSS。
+      if ((this.monsterSpawnQueue && queueDone) || (!this.monsterSpawnQueue && timeUp)) {
+        this._spawnMonster(bossType, this.level)
+        this.bossSpawned = true
+        return
+      }
     }
     if (this.bossSpawned) return
 
