@@ -74,6 +74,11 @@ export class MainScene extends Scene {
     cloud.onload = () => { this.cloudImg = cloud }
     cloud.src = assetUrl('assets/cloud_main.png?v=4')
 
+    this.cloudSubImg = null
+    const cloudSub = tt.createImage()
+    cloudSub.onload = () => { this.cloudSubImg = cloudSub }
+    cloudSub.src = assetUrl('assets/cloud_sub.png?v=1')
+
     // safeArea 固定按 0 处理；资源栏内容仍保留至少 30px 的横向安全边距。
     this.safeArea = 0
     this.leftPad = Math.max(30, Math.round(w * 0.045))
@@ -331,6 +336,18 @@ export class MainScene extends Scene {
     const maxCenterY = this.navY - drawH / 2 - 8
     const centerY = Math.max(minCenterY, Math.min(h * 0.375, maxCenterY))
     const offsetX = Math.sin(this.animT * 0.3) * 40
+
+    if (this.cloudSubImg) {
+      const subSourceW = this.cloudSubImg.width || 512
+      const subSourceH = this.cloudSubImg.height || 512
+      const subDrawW = drawW * 0.6
+      const subDrawH = subDrawW * subSourceH / subSourceW
+      const subOffsetX = Math.sin(this.animT * 0.3 + 1.3) * 30
+      const subX = (w - drawW) / 2 - drawW * 0.28 + subOffsetX
+      const subY = centerY + drawH * 0.15
+      ctx.drawImage(this.cloudSubImg, subX, subY, subDrawW, subDrawH)
+    }
+
     ctx.drawImage(this.cloudImg, (w - drawW) / 2 + offsetX, centerY - drawH / 2, drawW, drawH)
   }
 
