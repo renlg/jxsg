@@ -72,7 +72,7 @@ export class MainScene extends Scene {
     this.cloudImg = null
     const cloud = tt.createImage()
     cloud.onload = () => { this.cloudImg = cloud }
-    cloud.src = assetUrl('assets/cloud_main.png?v=3')
+    cloud.src = assetUrl('assets/cloud_main.png?v=4')
 
     // safeArea 固定按 0 处理；资源栏内容仍保留至少 30px 的横向安全边距。
     this.safeArea = 0
