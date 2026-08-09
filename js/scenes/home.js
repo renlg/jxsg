@@ -161,6 +161,16 @@ const LEVEL_WAVE_DEFS = {
   10: {
     xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 50 }, { lv: 5, count: 30 }],
     gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }, { lv: 4, count: 30 }, { lv: 5, count: 20 }]
+  },
+  11: {
+    xiaobing: [{ lv: 1, count: 30 }],
+    gongjian: [{ lv: 1, count: 30 }],
+    daofu: [{ lv: 1, count: 20 }]
+  },
+  12: {
+    xiaobing: [{ lv: 1, count: 30 }, { lv: 2, count: 20 }],
+    gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 20 }],
+    daofu: [{ lv: 1, count: 20 }, { lv: 2, count: 10 }]
   }
 }
 
@@ -1209,7 +1219,7 @@ export class HomeScene extends Scene {
     if (!waveDef) return null
 
     const queue = []
-    const monsterTypes = ['xiaobing', 'gongjian']
+    const monsterTypes = ['xiaobing', 'gongjian', 'daofu']
     monsterTypes.forEach(type => {
       const groups = waveDef[type] || []
       groups.forEach(group => {
