@@ -69,6 +69,11 @@ export class MainScene extends Scene {
     bg.onload = () => { this.bgImg = bg }
     getLocalAssetPath('assets/pvz_bg.jpg').then(path => { bg.src = path })
 
+    this.cloudImg = null
+    const cloud = tt.createImage()
+    cloud.onload = () => { this.cloudImg = cloud }
+    cloud.src = assetUrl('assets/cloud_main.png?v=1')
+
     // safeArea 固定按 0 处理；资源栏内容仍保留至少 30px 的横向安全边距。
     this.safeArea = 0
     this.leftPad = Math.max(30, Math.round(w * 0.045))
@@ -301,24 +306,30 @@ export class MainScene extends Scene {
 
     this._renderBackdrop(ctx)
     this._renderParticles(ctx)
-    this._renderTopBar(ctx)
     this._renderLobbyDecoration(ctx)
+    this._renderTopBar(ctx)
     this._renderBottomNav(ctx)
     this._renderFx(ctx)
     if (this.panel) this._renderPanel(ctx)
     if (this.settingsOpen) this._renderSettingsPanel(ctx)
   }
 
-  // 主城中间区域保持留白，只用极淡题字维持画面层次。
+  // 祥云仅装饰无面板的主屏，不参与任何触摸命中。
   _renderLobbyDecoration(ctx) {
-    const y = this.topBarH + (this.navY - this.topBarH) * 0.52
-    ctx.save()
-    ctx.fillStyle = 'rgba(244,218,148,0.18)'
-    ctx.font = `bold ${Math.max(18, Math.min(30, this.game.width * 0.045))}px serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('群 雄 聚 义', this.game.width / 2, y)
-    ctx.restore()
+    if (this.panel || !this.cloudImg) return
+
+    const w = this.game.width
+    const h = this.game.height
+    const sourceW = this.cloudImg.width || 512
+    const sourceH = this.cloudImg.height || 512
+    const availableH = Math.max(1, this.navY - this.topBarH - 16)
+    const scale = Math.min(1, w * 0.65 / sourceW, availableH / sourceH)
+    const drawW = sourceW * scale
+    const drawH = sourceH * scale
+    const minCenterY = this.topBarH + drawH / 2 + 8
+    const maxCenterY = this.navY - drawH / 2 - 8
+    const centerY = Math.max(minCenterY, Math.min(h * 0.375, maxCenterY))
+    ctx.drawImage(this.cloudImg, (w - drawW) / 2, centerY - drawH / 2, drawW, drawH)
   }
 
   _renderPanel(ctx) {
