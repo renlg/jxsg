@@ -143,23 +143,23 @@ const LEVEL_WAVE_DEFS = {
   4: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 30 }] },
   5: { xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 50 }, { lv: 5, count: 30 }] },
   6: {
-    xiaobing: [{ lv: 1, count: 50 }],
+    xiaobing: [{ lv: 1, count: 30 }],
     gongjian: [{ lv: 1, count: 30 }]
   },
   7: {
-    xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 20 }],
+    xiaobing: [{ lv: 1, count: 30 }, { lv: 2, count: 20 }],
     gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 20 }]
   },
   8: {
-    xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 30 }],
-    gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 50 }]
+    xiaobing: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 20 }],
+    gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 20 }]
   },
   9: {
-    xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 30 }],
+    xiaobing: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }, { lv: 4, count: 20 }],
     gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }, { lv: 4, count: 20 }]
   },
   10: {
-    xiaobing: [{ lv: 1, count: 50 }, { lv: 2, count: 50 }, { lv: 3, count: 50 }, { lv: 4, count: 50 }, { lv: 5, count: 30 }],
+    xiaobing: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }, { lv: 4, count: 30 }, { lv: 5, count: 20 }],
     gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }, { lv: 4, count: 30 }, { lv: 5, count: 20 }]
   },
   11: {
