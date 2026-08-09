@@ -31,6 +31,12 @@ const PULL_DONE_HOLD = 0.6
 const GACHA_TOAST_DUR = 0.8
 const LEVEL_COUNT = 15
 const LEVEL_DRAG_THRESHOLD = 8
+const NAV_ITEMS = [
+  { id: 'hero', label: '英雄', asset: 'assets/nav_hero.png' },
+  { id: 'bag', label: '背包', asset: 'assets/nav_bag.png' },
+  { id: 'level', label: '关卡', asset: 'assets/nav_level.png' },
+  { id: 'rank', label: '排行', asset: 'assets/nav_rank.png' }
+]
 
 // 主页面（大厅）：水墨山水背景 + 顶部玩家栏 + 武将陈列 + 关卡选择入口
 export class MainScene extends Scene {
@@ -67,6 +73,8 @@ export class MainScene extends Scene {
 
     this.heroImgs = {}
     this._loadHeroImgs()
+    this.navImgs = {}
+    this._loadNavImgs()
 
     this._layoutLobby(w, h)
     // 进入大厅时让当前（即下一待挑战）关卡居中显示。
@@ -86,6 +94,23 @@ export class MainScene extends Scene {
   }
 
   _layoutLobby(w, h) {
+    // 底部导航固定占据底边，主内容区只在其上方排布，避免关卡卡片被遮挡。
+    this.navH = Math.max(74, Math.min(90, Math.round(h * 0.135)))
+    this.navY = h - this.navH
+    const navSidePad = Math.max(12, Math.round(w * 0.035))
+    const navGap = Math.max(8, Math.min(18, Math.round(w * 0.025)))
+    const navButtonSize = Math.max(58, Math.min(78, this.navH - 10, (w - navSidePad * 2 - navGap * 3) / NAV_ITEMS.length))
+    const navTotalW = navButtonSize * NAV_ITEMS.length + navGap * (NAV_ITEMS.length - 1)
+    const navStartX = (w - navTotalW) / 2
+    this.navRects = NAV_ITEMS.map((item, i) => ({
+      id: item.id,
+      label: item.label,
+      x: navStartX + i * (navButtonSize + navGap),
+      y: this.navY + (this.navH - navButtonSize) / 2,
+      w: navButtonSize,
+      h: navButtonSize
+    }))
+
     const rowTop = this.topBarH + Math.max(16, Math.round(h * 0.035))
     const maxCardH = Math.max(72, Math.min(118, h * 0.25))
     const cardGap = Math.max(7, Math.min(14, Math.round(w * 0.016)))
@@ -95,8 +120,8 @@ export class MainScene extends Scene {
     this.heroRowY = rowTop
 
     const selectorTop = this.heroRowY + this.cardH + Math.max(24, Math.round(h * 0.045))
-    // 按钮移除后，关卡选择器使用余下空间，并与武将行组成居中的主内容区。
-    const selectorBottom = h - Math.max(22, Math.round(h * 0.055))
+    // 关卡选择器使用导航栏上方的余下空间，并与武将行组成居中的主内容区。
+    const selectorBottom = this.navY - Math.max(12, Math.round(h * 0.02))
     const selectorH = Math.max(64, selectorBottom - selectorTop)
     this.levelViewport = { x: this.leftPad, y: selectorTop, w: w - this.leftPad * 2, h: selectorH }
     this.levelCardH = Math.max(58, Math.min(180, selectorH - 24))
@@ -180,6 +205,15 @@ export class MainScene extends Scene {
     })
   }
 
+  // 底部导航图标由本地资源映射异步加载；资源未就绪时渲染函数会自动显示占位色块。
+  _loadNavImgs() {
+    NAV_ITEMS.forEach(item => {
+      const img = tt.createImage()
+      img.onload = () => { this.navImgs[item.id] = img }
+      getLocalAssetPath(item.asset).then(path => { img.src = path }).catch(() => {})
+    })
+  }
+
   // 抽卡：先扣除 GACHA_COST 金币，金币不足则不抽卡，仅弹出提示文字；
   // 扣费成功后随机抽中一名武将并获得 1~3 个该武将碎片，走原有翻牌状态机。
   startGachaPull() {
@@ -244,6 +278,7 @@ export class MainScene extends Scene {
     this._renderSectionTitle(ctx)
     this._renderHeroRow(ctx)
     this._renderLevelSelector(ctx)
+    this._renderBottomNav(ctx)
     this._renderFx(ctx)
     this._renderPullEffect(ctx)
     if (this.settingsOpen) this._renderSettingsPanel(ctx)
@@ -697,6 +732,62 @@ export class MainScene extends Scene {
     ctx.restore()
   }
 
+  // 方案 2 底部横排导航：图标资源未加载完成时显示暗金色占位块，并始终保留文字标签。
+  _renderBottomNav(ctx) {
+    const w = this.game.width
+    const h = this.game.height
+
+    ctx.save()
+    const barGrad = ctx.createLinearGradient(0, this.navY, 0, h)
+    barGrad.addColorStop(0, 'rgba(10,12,17,0.76)')
+    barGrad.addColorStop(1, 'rgba(3,4,7,0.96)')
+    ctx.fillStyle = barGrad
+    ctx.fillRect(0, this.navY, w, this.navH)
+    ctx.strokeStyle = 'rgba(229,190,91,0.48)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(0, this.navY + 0.5)
+    ctx.lineTo(w, this.navY + 0.5)
+    ctx.stroke()
+
+    this.navRects.forEach(rect => {
+      const active = rect.id === 'level'
+      const radius = Math.max(10, rect.w * 0.16)
+      const buttonGrad = ctx.createLinearGradient(0, rect.y, 0, rect.y + rect.h)
+      buttonGrad.addColorStop(0, active ? '#55431d' : '#292b32')
+      buttonGrad.addColorStop(1, active ? '#211a0c' : '#111319')
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'
+      this._roundRect(ctx, rect.x + 1, rect.y + 3, rect.w, rect.h, radius)
+      ctx.fill()
+      ctx.fillStyle = buttonGrad
+      this._roundRect(ctx, rect.x, rect.y, rect.w, rect.h, radius)
+      ctx.fill()
+      ctx.strokeStyle = active ? '#e2bd58' : 'rgba(206,177,104,0.58)'
+      ctx.lineWidth = active ? 2 : 1
+      ctx.stroke()
+
+      const labelH = Math.max(18, rect.h * 0.27)
+      const iconSize = Math.max(26, Math.min(rect.w - 16, rect.h - labelH - 10))
+      const iconX = rect.x + (rect.w - iconSize) / 2
+      const iconY = rect.y + 5
+      const img = this.navImgs[rect.id]
+      if (img) {
+        ctx.drawImage(img, iconX, iconY, iconSize, iconSize)
+      } else {
+        ctx.fillStyle = active ? 'rgba(226,189,88,0.38)' : 'rgba(206,177,104,0.22)'
+        this._roundRect(ctx, iconX, iconY, iconSize, iconSize, Math.max(5, iconSize * 0.16))
+        ctx.fill()
+      }
+
+      ctx.fillStyle = active ? '#ffe49a' : '#e7d8ae'
+      ctx.font = `bold ${Math.max(11, Math.min(14, rect.w * 0.18))}px sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(rect.label, rect.x + rect.w / 2, rect.y + rect.h - labelH / 2)
+    })
+    ctx.restore()
+  }
+
   _drawLock(ctx, cx, cy, size) {
     ctx.strokeStyle = '#d3d5db'
     ctx.lineWidth = Math.max(2, size * 0.2)
@@ -820,6 +911,16 @@ export class MainScene extends Scene {
     }
 
     if (this.pull) return
+    const nav = this.navRects.find(rect => this.hitRect(x, y, rect.x, rect.y, rect.w, rect.h))
+    if (nav) {
+      this.levelTouch = null
+      if (nav.id === 'level') {
+        this.game.switch('home', { level: this.level })
+      } else {
+        this.fx.push({ x: nav.x + nav.w / 2, y: this.navY - 4, t: 0, dur: GACHA_TOAST_DUR, text: '开发中', color: '#fff0b0' })
+      }
+      return
+    }
     if (this.hitRect(x, y, this.levelViewport.x, this.levelViewport.y, this.levelViewport.w, this.levelViewport.h)) {
       this.levelTouch = { startX: x, startY: y, startOffset: this.scrollOffset, moved: false }
       return
