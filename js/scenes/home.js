@@ -115,6 +115,7 @@ const BATTLE_TIME_LIMIT = 180
 const MONSTER_SPAWN_FIRST = 1.5
 const MONSTER_MAX_ALIVE = 8
 const MONSTER_ATTACK_COOLDOWN = 1.0
+const BOSS_ATTACK_GAP_OVERRIDE = { zhangjiao: 4.0 }
 const MONSTER_SPAWN_INTERVAL_BASE = 2.8
 const MONSTER_SPAWN_INTERVAL_STEP = 0.22
 const MONSTER_SPAWN_INTERVAL_MIN = 0.6
@@ -953,14 +954,8 @@ export class HomeScene extends Scene {
   _updateMonsterSpawn(dt) {
     const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : this.level === 15 ? 'lvbu' : null
 
-    // 180 秒兜底：队列仍未出完时丢弃剩余小怪，保证 BOSS 一定出现。
-    if (bossType && !this.bossSpawned && this.battleTime >= BATTLE_TIME_LIMIT) {
-      if (this.monsterSpawnQueue) this.monsterSpawnQueue.length = 0
-      this._spawnMonster(bossType, this.level)
-      this.bossSpawned = true
-      return
-    }
-    if (this.battleTime >= BATTLE_TIME_LIMIT) return
+    // 固定队列关不受 180 秒限制，必须出完并清完全部怪才通关。
+    if (!this.monsterSpawnQueue && this.battleTime >= BATTLE_TIME_LIMIT) return
 
     if (bossType && !this.bossSpawned) {
       const queueDone = !this.monsterSpawnQueue || this.monsterSpawnQueue.length === 0
@@ -1140,6 +1135,7 @@ export class HomeScene extends Scene {
 
   _monsterAttackGap(m) {
     if (m.type === 'xiaobing') return MONSTER_ATTACK_GAP
+    if (BOSS_ATTACK_GAP_OVERRIDE[m.type]) return BOSS_ATTACK_GAP_OVERRIDE[m.type]
     return Math.max(MONSTER_ATTACK_COOLDOWN, this._monsterAttackPlayDur(m) + ATTACK_RECOVERY_PAUSE)
   }
 
@@ -1617,7 +1613,13 @@ export class HomeScene extends Scene {
 
   _checkLevelCleared() {
     if (this.gameOver || this.levelCleared) return
-    if (this.battleTime < BATTLE_TIME_LIMIT) return
+    if (this.monsterSpawnQueue) {
+      const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : null
+      // 队列关清完全部怪才通关；有关卡 BOSS 时还需确认 BOSS 已生成。
+      if (this.monsterSpawnQueue.length > 0 || (bossType && !this.bossSpawned)) return
+    } else if (this.battleTime < BATTLE_TIME_LIMIT) {
+      return
+    }
     if (this.monsters.some(m => !m.dead && m.state !== 'dying')) return
     this.levelCleared = true
     this.savedLevel = Math.max(this.savedLevel, Math.min(this.level + 1, LEVEL_COUNT))
