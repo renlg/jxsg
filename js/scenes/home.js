@@ -33,9 +33,12 @@ const HERO_STATS = {
   guanyu: { maxHp: 200, damage: 20, attackRange: 0.8, attackCooldown: 1.8, animFps: 7 },
   zhangfei: { maxHp: 120, damage: 10, attackRange: 2, attackCooldown: 1.6, animFps: 8 },
   zhaoyun: { maxHp: 120, damage: 10, attackRange: 2, attackCooldown: 0.6, animFps: 14 },
-  zhugeliang: { maxHp: 100, damage: 20, attackRange: 4, attackCooldown: 2.0, animFps: 7 },
+  zhugeliang: { maxHp: 100, damage: 50, attackRange: 4, attackCooldown: 2.0, animFps: 7 },
   liubei: { maxHp: 300, damage: 0, attackRange: 0, attackCooldown: 2.0, animFps: 7, healAmount: 10, healRange: 3 }
 }
+
+// 近战群攻英雄名单：关羽、赵云、张飞。主目标100%伤害，攻击范围内其他目标30%伤害。
+const AOE_MELEE_HEROES = ['guanyu', 'zhaoyun', 'zhangfei']
 
 // 通用武将 LV1-5 按 round(基础值 × 1.6^(等级-1))；LV6 起从 LV5 结果继续逐级 ×1.6。
 // 关羽 LV1-5 使用单独给定的数值表，之后同样从 LV5 表值继续递推。
@@ -1258,9 +1261,9 @@ export class HomeScene extends Scene {
 
       target.attacking = true
       target.attackT = ATTACK_ANIM_DUR
-      // 关羽群攻：主目标100%，范围内其他目标30%。起手时锁定溅射目标，命中时分别判定是否仍可受击。
+      // 关羽、赵云、张飞群攻：主目标100%，范围内其他目标30%。起手时锁定溅射目标，命中时分别判定是否仍可受击。
       let splashTargets = null
-      if (entry.heroId === 'guanyu') {
+      if (AOE_MELEE_HEROES.includes(entry.heroId)) {
         splashTargets = []
         this.monsters.forEach(m => {
           if (m === target || m.state !== 'walking') return
@@ -1386,11 +1389,11 @@ export class HomeScene extends Scene {
     }
   }
 
-  // 武将挥砍命中：关羽主目标100%伤害、起手时范围内其他目标30%伤害；各目标独立判定是否仍可受击。
+  // 武将挥砍命中：关羽、赵云、张飞主目标100%伤害、起手时范围内其他目标30%伤害；各目标独立判定是否仍可受击。
   _resolveHeroMeleeHit(hit) {
     const target = hit.target
     const fxY = this.lawnY + hit.heroEntry.r * this.cell + this.cell * 0.5
-    if (hit.heroEntry.heroId === 'guanyu' && hit.splashTargets) {
+    if (AOE_MELEE_HEROES.includes(hit.heroEntry.heroId) && hit.splashTargets) {
       const splashDmg = Math.max(1, Math.round(hit.dmg * 0.3))
       hit.splashTargets.forEach(m => {
         if (!m || m.dead || m.state !== 'walking') return
