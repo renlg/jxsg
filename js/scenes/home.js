@@ -1128,7 +1128,7 @@ export class HomeScene extends Scene {
     if (heroId === 'zhaoyun') {
       const duration = 3 + (level - 1)
       this.deployed.forEach(entry => {
-        if (entry.heroId === heroId && !entry.dying) entry.speedBuffT = duration
+        if (!entry.dying) entry.speedBuffT = duration
       })
     } else if (heroId === 'zhugeliang') {
       const damage = this._heroDamage(heroId, level)
@@ -2337,7 +2337,7 @@ export class HomeScene extends Scene {
     else if (heroId === 'zhugeliang') dur = ZHUGELIANG_FRAME_COUNT / fps
     else if (heroId === 'liubei') dur = LIUBEI_FRAMES.length / fps
     // 赵云技能的 +100% 攻速同时作用于动作播放与动作结束时的命中结算点。
-    if (heroId === 'zhaoyun' && entry && entry.speedBuffT > 0) dur /= 2
+    if (entry && entry.speedBuffT > 0) dur /= 2
     return dur
   }
 
@@ -2346,7 +2346,7 @@ export class HomeScene extends Scene {
     const bonus = this._heroAttackSpeedBonus(level)
     let gap = Math.max(HERO_STATS[heroId].attackCooldown, this._attackAnimPlayDur(heroId, level) + ATTACK_RECOVERY_PAUSE) / (1 + bonus)
     // 赵云技能不改基础节拍公式；技能持续期间把完整攻击间隔整体除以 2。
-    if (heroId === 'zhaoyun' && entry && entry.speedBuffT > 0) gap /= 2
+    if (entry && entry.speedBuffT > 0) gap /= 2
     return gap
   }
 
