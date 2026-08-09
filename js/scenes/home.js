@@ -134,7 +134,7 @@ const MONSTER_SPAWN_INTERVAL_BASE = 2.8
 const MONSTER_SPAWN_INTERVAL_STEP = 0.22
 const MONSTER_SPAWN_INTERVAL_MIN = 0.6
 
-// 第 1-10 关使用固定小怪队列：关卡内先按兵种（刀盾手 -> 弓箭手），再按等级升序出怪。
+// 各关使用固定小怪队列：先按等级升序，同等级内按刀盾手 -> 弓箭手 -> 刀斧手轮转出怪。
 // 第 8 关弓箭手末段漏写等级，按该兵种与刀盾手的最高等级推断为 LV3，并与前一 LV3 段合并。
 const LEVEL_WAVE_DEFS = {
   1: { xiaobing: [{ lv: 1, count: 50 }] },
@@ -1235,11 +1235,24 @@ export class HomeScene extends Scene {
 
     const queue = []
     const monsterTypes = ['xiaobing', 'gongjian', 'daofu']
+    const levels = {}
+
     monsterTypes.forEach(type => {
       const groups = waveDef[type] || []
       groups.forEach(group => {
-        for (let i = 0; i < group.count; i++) queue.push({ type, level: group.lv })
+        if (!levels[group.lv]) levels[group.lv] = []
+        levels[group.lv].push({ type, count: group.count })
       })
+    })
+
+    Object.keys(levels).map(Number).sort((a, b) => a - b).forEach(level => {
+      const groups = levels[level]
+      const maxCount = Math.max(...groups.map(group => group.count))
+      for (let i = 0; i < maxCount; i++) {
+        groups.forEach(group => {
+          if (group.count > i) queue.push({ type: group.type, level })
+        })
+      }
     })
     return queue
   }
