@@ -2373,7 +2373,7 @@ export class HomeScene extends Scene {
   // 播完（含后摇停顿期间）后停留在最后一帧（收势姿态），不再从头循环，直到下一次攻击真正触发
   _attackFrameIndex(entry, frameCount, fps) {
     fps *= 1 + this._heroAttackSpeedBonus(entry.level)
-    if (entry.heroId === 'zhaoyun' && entry.speedBuffT > 0) fps *= 2
+    if (entry && entry.speedBuffT > 0) fps *= 2
     const last = this._entryAttackAnimStart(entry)
     if (last === null) return 0
     const elapsed = (this.animT || 0) - last
