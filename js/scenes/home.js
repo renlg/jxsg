@@ -297,12 +297,12 @@ export class HomeScene extends Scene {
     this.monsterSpeed = 30 * (1 + 0.05 * (this.level - 1))
     const spawnInterval = Math.max(MONSTER_SPAWN_INTERVAL_MIN, MONSTER_SPAWN_INTERVAL_BASE - MONSTER_SPAWN_INTERVAL_STEP * (this.level - 1))
     this.monsterSpawnQueue = this._buildMonsterSpawnQueue()
-    // 固定队列关卡提前 40 秒排完，为满员卡队列和 BOSS 收尾预留时间；原递减间隔仍作为较慢一侧的上限。
-    const spawnDeadline = this.level === 5 || this.level === 10 ? BATTLE_TIME_LIMIT - 40 : BATTLE_TIME_LIMIT
+    // 出怪纯时间驱动，180 秒内按固定间隔出完全部怪（含 BOSS），不等待玩家清怪。
+    const spawnDeadline = BATTLE_TIME_LIMIT
     const queueInterval = this.monsterSpawnQueue
       ? (spawnDeadline - MONSTER_SPAWN_FIRST) / this.monsterSpawnQueue.length
       : spawnInterval
-    this.monsterSpawnInterval = Math.min(spawnInterval, queueInterval)
+    this.monsterSpawnInterval = this.monsterSpawnQueue ? queueInterval : spawnInterval
     this.battleTime = 0
     this.avatarImg = null
     this._loadAvatar()
@@ -952,29 +952,27 @@ export class HomeScene extends Scene {
   }
 
   _updateMonsterSpawn(dt) {
-    const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : this.level === 15 ? 'lvbu' : null
+    if (this.battleTime >= BATTLE_TIME_LIMIT) return
 
-    // 固定队列关不受 180 秒限制，必须出完并清完全部怪才通关。
-    if (!this.monsterSpawnQueue && this.battleTime >= BATTLE_TIME_LIMIT) return
-
-    if (bossType && !this.bossSpawned) {
-      const queueDone = !this.monsterSpawnQueue || this.monsterSpawnQueue.length === 0
-      const timeUp = this.battleTime >= BATTLE_TIME_LIMIT - 20
-      // 队列关等待小怪队列出完再生成 BOSS；非队列关仍在 160 秒生成 BOSS。
-      if ((this.monsterSpawnQueue && queueDone) || (!this.monsterSpawnQueue && timeUp)) {
-        this._spawnMonster(bossType, this.level)
-        this.bossSpawned = true
-        return
-      }
+    const bossType = this.level === 15 ? 'lvbu' : null
+    if (bossType && !this.bossSpawned && this.battleTime >= BATTLE_TIME_LIMIT - 20) {
+      this._spawnMonster(bossType, this.level)
+      this.bossSpawned = true
+      return
     }
     if (this.bossSpawned) return
 
     this.monsterSpawnT -= dt
-    while (this.monsterSpawnT <= 0 && this.monsters.length < MONSTER_MAX_ALIVE) {
+    const queueActive = this.monsterSpawnQueue && this.monsterSpawnQueue.length > 0
+    while (this.monsterSpawnT <= 0 && (queueActive || this.monsters.length < MONSTER_MAX_ALIVE)) {
       if (this.monsterSpawnQueue) {
         const nextMonster = this.monsterSpawnQueue.shift()
-        if (!nextMonster) return
+        if (!nextMonster) {
+          this.monsterSpawnT = 1e9
+          break
+        }
         this._spawnMonster(nextMonster.type, nextMonster.level)
+        if (nextMonster.type === 'zhangjiao' || nextMonster.type === 'dongzhuo') this.bossSpawned = true
         this.monsterSpawnT += this.monsterSpawnInterval
         continue
       }
@@ -1000,6 +998,8 @@ export class HomeScene extends Scene {
         for (let i = 0; i < group.count; i++) queue.push({ type, level: group.lv })
       })
     })
+    if (this.level === 5) queue.push({ type: 'zhangjiao', level: this.level })
+    if (this.level === 10) queue.push({ type: 'dongzhuo', level: this.level })
     return queue
   }
 
@@ -1613,13 +1613,7 @@ export class HomeScene extends Scene {
 
   _checkLevelCleared() {
     if (this.gameOver || this.levelCleared) return
-    if (this.monsterSpawnQueue) {
-      const bossType = this.level === 5 ? 'zhangjiao' : this.level === 10 ? 'dongzhuo' : null
-      // 队列关清完全部怪才通关；有关卡 BOSS 时还需确认 BOSS 已生成。
-      if (this.monsterSpawnQueue.length > 0 || (bossType && !this.bossSpawned)) return
-    } else if (this.battleTime < BATTLE_TIME_LIMIT) {
-      return
-    }
+    if (this.battleTime < BATTLE_TIME_LIMIT) return
     if (this.monsters.some(m => !m.dead && m.state !== 'dying')) return
     this.levelCleared = true
     this.savedLevel = Math.max(this.savedLevel, Math.min(this.level + 1, LEVEL_COUNT))
