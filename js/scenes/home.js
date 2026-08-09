@@ -171,6 +171,16 @@ const LEVEL_WAVE_DEFS = {
     xiaobing: [{ lv: 1, count: 30 }, { lv: 2, count: 20 }],
     gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 20 }],
     daofu: [{ lv: 1, count: 20 }, { lv: 2, count: 10 }]
+  },
+  13: {
+    xiaobing: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 20 }],
+    gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }],
+    daofu: [{ lv: 1, count: 20 }, { lv: 2, count: 20 }, { lv: 3, count: 10 }]
+  },
+  14: {
+    xiaobing: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }, { lv: 4, count: 20 }],
+    gongjian: [{ lv: 1, count: 30 }, { lv: 2, count: 30 }, { lv: 3, count: 30 }, { lv: 4, count: 20 }],
+    daofu: [{ lv: 1, count: 20 }, { lv: 2, count: 20 }, { lv: 3, count: 20 }, { lv: 4, count: 10 }]
   }
 }
 
